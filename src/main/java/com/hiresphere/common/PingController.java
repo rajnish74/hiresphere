@@ -1,6 +1,7 @@
 package com.hiresphere.common;
 
 import com.hiresphere.common.dto.ApiResponse;
+import com.hiresphere.common.exception.DuplicateResourceException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,5 +19,10 @@ public class PingController {
     @GetMapping("/error")
     public ApiResponse<String> error() {
         throw new ResourceNotFoundException("Demo resource not found");
+    }
+
+    @GetMapping("/duplicate")
+    public ApiResponse<String> duplicate() {
+        throw new DuplicateResourceException("Demo duplicate resource");
     }
 }

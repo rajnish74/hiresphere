@@ -34,4 +34,23 @@ class UserRepositoryTest {
         assertThat(found.get().getVersion()).isNotNull();
         assertThat(found.get().isDeleted()).isFalse();
     }
+
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Test
+    void softDeletedUserShouldNotBeFound() {
+        User user = new User();
+        user.setFullName("Delete Me");
+        user.setEmail("delete@hiresphere.com");
+        user.setPasswordHash("dummy-hash");
+        user.setRole(Role.CANDIDATE);
+        userRepository.saveAndFlush(user);
+
+        user.markDeleted();
+        userRepository.saveAndFlush(user);
+        entityManager.clear();
+
+        assertThat(userRepository.findByEmail("delete@hiresphere.com")).isEmpty();
+    }
 }
