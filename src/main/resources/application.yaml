@@ -1,10 +1,18 @@
+
 spring:
   application:
     name: hiresphere
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/hiresphere}
     username: ${DB_USER:hire_user}
     password: ${DB_PASSWORD:hire_pass}
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -12,8 +20,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        default_batch_fetch_size: 50
+
   flyway:
     enabled: true
+
   threads:
     virtual:
       enabled: true
@@ -24,10 +35,14 @@ app:
     access-token-minutes: 15
     refresh-token-days: 7
     issuer: hiresphere
+
   security:
     login:
       max-attempts: 5
       block-minutes: 15
+
+  storage:
+    base-dir: ${STORAGE_DIR:./uploads/resumes}
 
 management:
   endpoints:
@@ -37,3 +52,7 @@ management:
 
 server:
   port: 8082
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG

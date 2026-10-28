@@ -80,5 +80,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, "Authentication required or token is invalid", req, null);
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleTooLarge(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        return build(HttpStatus.valueOf(413), "File is too large. Maximum allowed size is 5 MB.", req, null);
+    }
+
 
 }
