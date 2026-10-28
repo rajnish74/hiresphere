@@ -1,0 +1,76 @@
+package com.hiresphere.job;
+
+import com.hiresphere.common.exception.AppException;
+import com.hiresphere.job.dto.JobResponse;
+import com.hiresphere.job.entity.Job;
+import com.hiresphere.job.entity.JobStatus;
+import com.hiresphere.job.repository.JobRepository;
+import com.hiresphere.job.service.JobService;
+import com.hiresphere.recruiter.dto.CompanySummary;
+import com.hiresphere.recruiter.entity.CompanyStatus;
+import com.hiresphere.recruiter.service.CompanyService;
+import com.hiresphere.skill.service.SkillService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class JobServiceTest {
+
+    @Mock
+    private JobRepository jobRepository;
+    @Mock
+    private CompanyService companyService;
+    @Mock
+    private SkillService skillService;
+
+    private JobService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new JobService(jobRepository, companyService, skillService);
+    }
+
+    @Test
+    void publishShouldFailWhenCompanyIsNotApproved() {
+        Job job = new Job();
+        when(companyService.getOwnCompanySummary(1L))
+                .thenReturn(new CompanySummary(5L, "Demo Corp", CompanyStatus.PENDING));
+        when(jobRepository.findByIdAndCompanyId(10L, 5L)).thenReturn(Optional.of(job));
+
+        assertThatThrownBy(() -> service.publish(1L, 10L)).isInstanceOf(AppException.class);
+
+        assertThat(job.getStatus()).isEqualTo(JobStatus.DRAFT);   // job draft hi raha
+    }
+
+    @Test
+    void publishShouldWorkWhenCompanyIsApproved() {
+        Job job = new Job();
+        when(companyService.getOwnCompanySummary(1L))
+                .thenReturn(new CompanySummary(5L, "Demo Corp", CompanyStatus.APPROVED));
+        when(jobRepository.findByIdAndCompanyId(10L, 5L)).thenReturn(Optional.of(job));
+
+        JobResponse response = service.publish(1L, 10L);
+
+        assertThat(response.status()).isEqualTo(JobStatus.PUBLISHED);
+        assertThat(job.getPublishedAt()).isNotNull();
+    }
+
+    @Test
+    void publishShouldReturnNotFoundForJobOfAnotherCompany() {
+        when(companyService.getOwnCompanySummary(1L))
+                .thenReturn(new CompanySummary(5L, "Demo Corp", CompanyStatus.APPROVED));
+        when(jobRepository.findByIdAndCompanyId(10L, 5L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.publish(1L, 10L))
+                .hasMessageContaining("Job not found");
+    }
+}

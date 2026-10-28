@@ -86,5 +86,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.valueOf(413), "File is too large. Maximum allowed size is 5 MB.", req, null);
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex,
+            HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, "Invalid value for parameter '" + ex.getName() + "'", req, null);
+    }
+
 
 }
