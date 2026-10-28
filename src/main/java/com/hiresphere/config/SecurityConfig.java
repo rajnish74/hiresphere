@@ -24,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, LoginProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 

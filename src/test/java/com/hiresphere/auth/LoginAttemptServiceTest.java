@@ -2,6 +2,7 @@ package com.hiresphere.auth;
 
 import com.hiresphere.auth.service.LoginAttemptService;
 import com.hiresphere.common.exception.AppException;
+import com.hiresphere.config.LoginProperties;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -11,7 +12,7 @@ class LoginAttemptServiceTest {
 
     @Test
     void shouldBlockAfterFiveFailures() {
-        LoginAttemptService service = new LoginAttemptService();
+        LoginAttemptService service = new LoginAttemptService(new LoginProperties(5, 15));
         String key = "1.1.1.1|user@test.com";
 
         for (int i = 0; i < 5; i++) {
@@ -23,7 +24,7 @@ class LoginAttemptServiceTest {
 
     @Test
     void shouldAllowAfterReset() {
-        LoginAttemptService service = new LoginAttemptService();
+        LoginAttemptService service = new LoginAttemptService(new LoginProperties(5, 15));
         String key = "1.1.1.1|user@test.com";
         for (int i = 0; i < 5; i++) {
             service.recordFailure(key);

@@ -6,6 +6,7 @@ import com.hiresphere.user.dto.UserResponse;
 import com.hiresphere.user.entity.Role;
 import com.hiresphere.user.entity.User;
 import com.hiresphere.user.repository.UserRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,6 +22,14 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final LoginAttemptService loginAttemptService;
+    private String dummyHash;
+
+
+
+    @PostConstruct
+    void initDummyHash() {
+        this.dummyHash = passwordEncoder.encode("dummy-password-for-timing-defense");
+    }
 
     @Transactional
     public AuthResponse register(RegisterRequest req) {
@@ -50,6 +59,14 @@ public class AuthService {
         loginAttemptService.checkNotBlocked(key);
 
         User user = userRepository.findByEmail(email).orElse(null);
+
+        String hashToCheck = (user != null) ? user.getPasswordHash() : dummyHash;
+        boolean passwordOk = passwordEncoder.matches(req.password(), hashToCheck);
+
+        if (user == null || !passwordOk) {
+            loginAttemptService.recordFailure(key);
+            throw new AppException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        }
         if (user == null || !passwordEncoder.matches(req.password(), user.getPasswordHash())) {
             loginAttemptService.recordFailure(key);
             throw new AppException(HttpStatus.UNAUTHORIZED, "Invalid email or password");

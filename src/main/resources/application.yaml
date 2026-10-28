@@ -24,6 +24,10 @@ app:
     access-token-minutes: 15
     refresh-token-days: 7
     issuer: hiresphere
+  security:
+    login:
+      max-attempts: 5
+      block-minutes: 15
 
 management:
   endpoints:
