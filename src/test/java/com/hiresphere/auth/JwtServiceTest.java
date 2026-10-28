@@ -35,6 +35,6 @@ class JwtServiceTest {
 
         assertThat(jwt.getSubject()).isEqualTo("42");
         assertThat(jwt.<String>getClaim("role")).isEqualTo("RECRUITER");
-        assertThat(jwt.getIssuer().toString()).isEqualTo("hiresphere");
+        assertThat(jwt.getClaimAsString("iss")).isEqualTo("hiresphere");
     }
 }

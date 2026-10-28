@@ -22,6 +22,7 @@ app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-change-me-in-production-min-32-bytes}
     access-token-minutes: 15
+    refresh-token-days: 7
     issuer: hiresphere
 
 management:

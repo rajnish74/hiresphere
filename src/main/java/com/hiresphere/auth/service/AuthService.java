@@ -19,6 +19,8 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
+    private final LoginAttemptService loginAttemptService;
 
     @Transactional
     public AuthResponse register(RegisterRequest req) {
@@ -37,30 +39,53 @@ public class AuthService {
         user.setRole(req.role());
         userRepository.save(user);
 
-        return buildResponse(user);
+        return buildResponse(user, refreshTokenService.issueNewFamily(user.getId()));
     }
 
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest req) {
-        User user = userRepository.findByEmail(normalize(req.email()))
-                .orElseThrow(this::invalidCredentials);
+    // readOnly nahi:
+    @Transactional
+    public AuthResponse login(LoginRequest req, String clientIp) {
+        String email = normalize(req.email());
+        String key = clientIp + "|" + email;
+        loginAttemptService.checkNotBlocked(key);
 
-        if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
-            throw invalidCredentials();
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || !passwordEncoder.matches(req.password(), user.getPasswordHash())) {
+            loginAttemptService.recordFailure(key);
+            throw new AppException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
         if (!user.isEnabled()) {
             throw new AppException(HttpStatus.FORBIDDEN, "Account is disabled");
         }
-        return buildResponse(user);
+
+        loginAttemptService.reset(key);
+        return buildResponse(user, refreshTokenService.issueNewFamily(user.getId()));
     }
 
-    private AuthResponse buildResponse(User user) {
-        return new AuthResponse(jwtService.generateAccessToken(user), "Bearer",
+    // Yahan @Transactional nahi: rotate() ka apna transaction hai
+    public AuthResponse refresh(String rawRefreshToken) {
+        RefreshTokenService.Rotation rotation = refreshTokenService.rotate(rawRefreshToken);
+
+        User user = userRepository.findById(rotation.userId())
+                .orElseThrow(() -> new AppException(HttpStatus.UNAUTHORIZED, "Invalid or expired refresh token"));
+        if (!user.isEnabled()) {
+            refreshTokenService.revokeAllForUser(user.getId());
+            throw new AppException(HttpStatus.FORBIDDEN, "Account is disabled");
+        }
+        return buildResponse(user, rotation.refreshToken());
+    }
+
+    public void logout(String rawRefreshToken) {
+        refreshTokenService.revoke(rawRefreshToken);
+    }
+
+    public void logoutAll(Long userId) {
+        refreshTokenService.revokeAllForUser(userId);
+    }
+
+    private AuthResponse buildResponse(User user, String refreshToken) {
+        return new AuthResponse(jwtService.generateAccessToken(user), refreshToken, "Bearer",
                 jwtService.accessTokenTtlSeconds(), UserResponse.from(user));
-    }
-
-    private AppException invalidCredentials() {
-        return new AppException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
     }
 
     private String normalize(String email) {
