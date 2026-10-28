@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: hiresphere
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/hiresphere}
+    username: ${DB_USER:hire_user}
+    password: ${DB_PASSWORD:hire_pass}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+server:
+  port: 8082

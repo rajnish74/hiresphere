@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: hiresphere-db
+    environment:
+      POSTGRES_DB: hiresphere
+      POSTGRES_USER: hire_user
+      POSTGRES_PASSWORD: hire_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
