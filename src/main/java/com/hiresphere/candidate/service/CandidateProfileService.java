@@ -58,4 +58,9 @@ public class CandidateProfileService {
         profile.getSkills().addAll(resolved);
         return ProfileResponse.from(profile);
     }
+
+    @Transactional
+    public ProfileCompleteness.Result getCompleteness(Long userId) {
+        return ProfileCompleteness.calculate(getOrCreate(userId));
+    }
 }

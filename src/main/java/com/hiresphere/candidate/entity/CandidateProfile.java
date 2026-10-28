@@ -73,4 +73,8 @@ public class CandidateProfile extends BaseEntity {
     @OneToMany(mappedBy = "candidate", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("startDate DESC")
     private List<Experience> experience = new ArrayList<>();
+
+    @OneToMany(mappedBy = "candidate", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id DESC")
+    private List<Project> projects = new ArrayList<>();
 }

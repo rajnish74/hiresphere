@@ -2,6 +2,7 @@ package com.hiresphere.candidate.controller;
 
 import com.hiresphere.candidate.dto.*;
 import com.hiresphere.candidate.service.CandidateProfileService;
+import com.hiresphere.candidate.service.ProfileCompleteness;
 import com.hiresphere.candidate.service.ProfileSectionService;
 import com.hiresphere.common.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -80,6 +81,11 @@ public class CandidateProfileController {
     public ApiResponse<Void> deleteExperience(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
         sectionService.deleteExperience(userId(jwt), id);
         return ApiResponse.<Void>ok("Experience deleted", null);
+    }
+
+    @GetMapping("/completeness")
+    public ApiResponse<ProfileCompleteness.Result> completeness(@AuthenticationPrincipal Jwt jwt) {
+        return ApiResponse.ok(profileService.getCompleteness(userId(jwt)));
     }
 
     private Long userId(Jwt jwt) {

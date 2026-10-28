@@ -12,7 +12,8 @@ public record ProfileResponse(
         String linkedinUrl, String githubUrl, String portfolioUrl,
         ProfileVisibility visibility, boolean openToWork,
         List<String> skills, List<EducationResponse> education,
-        List<ExperienceResponse> experience, ResumeInfo resume, Instant updatedAt) {
+        List<ExperienceResponse> experience, List<ProjectResponse> projects,
+        ResumeInfo resume, Instant updatedAt) {
 
     public static ProfileResponse from(CandidateProfile p) {
         return new ProfileResponse(
@@ -29,6 +30,7 @@ public record ProfileResponse(
                         .sorted(String.CASE_INSENSITIVE_ORDER).toList(),
                 p.getEducation().stream().map(EducationResponse::from).toList(),
                 p.getExperience().stream().map(ExperienceResponse::from).toList(),
+                p.getProjects().stream().map(ProjectResponse::from).toList(),
                 ResumeInfo.from(p),
                 p.getUpdatedAt());
     }
