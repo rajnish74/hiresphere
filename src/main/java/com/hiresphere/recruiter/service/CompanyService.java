@@ -6,23 +6,31 @@ import com.hiresphere.common.exception.DuplicateResourceException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.util.PageUtil;
 import com.hiresphere.common.util.TextUtil;
+import com.hiresphere.recruiter.dto.AdminCompanyResponse;
 import com.hiresphere.recruiter.dto.CompanyRequest;
 import com.hiresphere.recruiter.dto.CompanyResponse;
 import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.Company;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.repository.CompanyRepository;
+import com.hiresphere.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class CompanyService {
 
     private final CompanyRepository companyRepository;
+    private final UserService userService;
 
     // ---------- Recruiter side ----------
 
@@ -68,10 +76,15 @@ public class CompanyService {
     // ---------- Admin side ----------
 
     @Transactional(readOnly = true)
-    public PageResponse<CompanyResponse> listByStatus(CompanyStatus status, int page, int size) {
-        return PageResponse.of(
-                companyRepository.findByVerificationStatus(status, PageUtil.newestFirst(page, size)),
-                CompanyResponse::from);
+    public PageResponse<AdminCompanyResponse> listByStatus(CompanyStatus status, int page, int size) {
+        Page<Company> result = companyRepository.findByVerificationStatus(status, PageUtil.newestFirst(page, size));
+
+        Set<Long> ownerIds = result.getContent().stream()
+                .map(Company::getOwnerId)
+                .collect(Collectors.toSet());
+        Map<Long, String> emails = userService.getEmails(ownerIds);
+
+        return PageResponse.of(result, c -> AdminCompanyResponse.from(c, emails.get(c.getOwnerId())));
     }
 
     @Transactional
@@ -93,6 +106,15 @@ public class CompanyService {
         Company company = findById(companyId);
         company.suspend(adminId, reason.trim());
         return CompanyResponse.from(company);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, String> getNames(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return companyRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Company::getId, Company::getName));
     }
 
     // ---------- helpers ----------

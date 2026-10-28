@@ -36,6 +36,9 @@ app:
     refresh-token-days: 7
     issuer: hiresphere
 
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
   security:
     login:
       max-attempts: 5

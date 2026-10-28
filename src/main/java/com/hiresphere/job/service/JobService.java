@@ -22,12 +22,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class JobService {
 
     private final JobRepository jobRepository;
@@ -139,5 +141,14 @@ public class JobService {
         List<String> skillNames = (r.skills() == null) ? List.of() : r.skills();
         j.getSkills().clear();
         j.getSkills().addAll(skillService.resolveAll(skillNames));
+    }
+
+    @Transactional
+    public int closeExpiredJobs() {
+        int closed = jobRepository.closeExpired(JobStatus.PUBLISHED, JobStatus.CLOSED, Instant.now());
+        if (closed > 0) {
+            log.info("Auto-closed {} expired jobs", closed);
+        }
+        return closed;
     }
 }

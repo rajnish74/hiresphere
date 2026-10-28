@@ -16,10 +16,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -72,5 +76,16 @@ class JobServiceTest {
 
         assertThatThrownBy(() -> service.publish(1L, 10L))
                 .hasMessageContaining("Job not found");
+    }
+
+    @Test
+    void closeExpiredJobsShouldDelegateToBulkUpdate() {
+        when(jobRepository.closeExpired(eq(JobStatus.PUBLISHED), eq(JobStatus.CLOSED), any(Instant.class)))
+                .thenReturn(3);
+
+        int closed = service.closeExpiredJobs();
+
+        assertThat(closed).isEqualTo(3);
+        verify(jobRepository).closeExpired(eq(JobStatus.PUBLISHED), eq(JobStatus.CLOSED), any(Instant.class));
     }
 }
