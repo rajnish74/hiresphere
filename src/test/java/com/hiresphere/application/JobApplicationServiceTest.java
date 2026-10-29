@@ -3,6 +3,7 @@ package com.hiresphere.application;
 import com.hiresphere.application.dto.*;
 import com.hiresphere.application.entity.ApplicationStatus;
 import com.hiresphere.application.entity.JobApplication;
+import com.hiresphere.application.event.ApplicationSubmittedEvent;
 import com.hiresphere.application.repository.JobApplicationRepository;
 import com.hiresphere.application.service.JobApplicationService;
 import com.hiresphere.candidate.dto.ApplicantSnapshot;
@@ -97,10 +98,11 @@ class JobApplicationServiceTest {
         when(applicationRepository.existsByJobIdAndCandidateUserId(10L, 1L)).thenReturn(false);
         when(candidateProfileService.getSnapshot(1L))
                 .thenReturn(new ApplicantSnapshot("Backend dev", "orig.pdf", "cv.pdf"));
-        when(userService.getById(1L)).thenReturn(new UserResponse(1L, "Asha", "asha@test.com", Role.CANDIDATE));
+        when(userService.getById(1L)).thenReturn(new UserResponse(1L, "Asha", "asha@test.com", Role.CANDIDATE, true));
         when(companyService.getNames(Set.of(5L))).thenReturn(Map.of(5L, "Acme"));
         when(storage.copy("orig.pdf")).thenReturn("copy.pdf");
         when(applicationRepository.saveAndFlush(any(JobApplication.class))).thenAnswer(i -> i.getArgument(0));
+
 
         ApplicationDetailResponse response = service.apply(1L, 10L, new ApplyRequest("Hello team"));
 
@@ -110,6 +112,7 @@ class JobApplicationServiceTest {
         assertThat(response.coverLetter()).isEqualTo("Hello team");
         assertThat(response.timeline()).hasSize(1);
         verify(storage).copy("orig.pdf");
+        verify(eventPublisher).publishEvent(any(ApplicationSubmittedEvent.class));
     }
 
     @Test
@@ -186,7 +189,7 @@ class JobApplicationServiceTest {
 
         service.changeStatus(2L, 7L, new StatusChangeRequest(ApplicationStatus.HIRED, null));
 
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
+        verify(eventPublisher, never()).publishEvent(any(JobFilledEvent.class));
     }
 
     @Test
@@ -239,5 +242,22 @@ class JobApplicationServiceTest {
 
         assertThat(response.status()).isEqualTo(ApplicationStatus.WITHDRAWN);
         assertThat(response.timeline()).hasSize(2);
+    }
+
+
+    @Test
+    void applyShouldBeBlockedUntilEmailIsVerified() {
+        when(jobQueryService.getPublicJob(10L)).thenReturn(job);
+        when(applicationRepository.existsByJobIdAndCandidateUserId(10L, 1L)).thenReturn(false);
+        when(candidateProfileService.getSnapshot(1L))
+                .thenReturn(new ApplicantSnapshot("Dev", "orig.pdf", "cv.pdf"));
+        when(userService.getById(1L)).thenReturn(new UserResponse(1L, "Asha", "asha@test.com", Role.CANDIDATE, false));
+
+        assertThatThrownBy(() -> service.apply(1L, 10L, null))
+                .isInstanceOf(AppException.class)
+                .hasMessageContaining("verify your email");
+
+        verify(storage, never()).copy(any());
+        verify(applicationRepository, never()).saveAndFlush(any());
     }
 }

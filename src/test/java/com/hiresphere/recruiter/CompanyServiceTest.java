@@ -1,22 +1,27 @@
 package com.hiresphere.recruiter;
 
+import com.hiresphere.common.exception.AppException;
 import com.hiresphere.recruiter.dto.CompanyRequest;
 import com.hiresphere.recruiter.dto.CompanyResponse;
 import com.hiresphere.recruiter.entity.Company;
 import com.hiresphere.recruiter.entity.CompanyStatus;
+import com.hiresphere.recruiter.event.CompanyStatusChangedEvent;
 import com.hiresphere.recruiter.repository.CompanyRepository;
 import com.hiresphere.recruiter.service.CompanyService;
 import com.hiresphere.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CompanyServiceTest {
@@ -28,9 +33,12 @@ class CompanyServiceTest {
 
     private CompanyService service;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @BeforeEach
     void setUp() {
-        service = new CompanyService(companyRepository, userService);
+        service = new CompanyService(companyRepository, userService, eventPublisher);
     }
 
     private Company approvedCompany() {
@@ -104,5 +112,48 @@ class CompanyServiceTest {
 
         assertThat(response.status()).isEqualTo(CompanyStatus.PENDING);
         assertThat(response.rejectionReason()).isNull();
+    }
+
+    private Company pendingCompany() {
+        Company c = new Company();
+        c.setId(5L);
+        c.setOwnerId(2L);
+        c.setName("Acme");
+        return c;
+    }
+
+    @Test
+    void approvingShouldPublishEventForTheOwner() {
+        when(companyRepository.findById(5L)).thenReturn(Optional.of(pendingCompany()));
+
+        service.approve(5L, 99L);
+
+        ArgumentCaptor<CompanyStatusChangedEvent> event = ArgumentCaptor.forClass(CompanyStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().ownerId()).isEqualTo(2L);
+        assertThat(event.getValue().status()).isEqualTo(CompanyStatus.APPROVED);
+    }
+
+    @Test
+    void rejectingShouldCarryTheReason() {
+        when(companyRepository.findById(5L)).thenReturn(Optional.of(pendingCompany()));
+
+        service.reject(5L, 99L, "  Website mismatch ");
+
+        ArgumentCaptor<CompanyStatusChangedEvent> event = ArgumentCaptor.forClass(CompanyStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().status()).isEqualTo(CompanyStatus.REJECTED);
+        assertThat(event.getValue().reason()).isEqualTo("Website mismatch");
+    }
+
+    @Test
+    void invalidTransitionShouldPublishNothing() {
+        Company approved = pendingCompany();
+        approved.approve(1L);
+        when(companyRepository.findById(5L)).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.approve(5L, 99L)).isInstanceOf(AppException.class);
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 }

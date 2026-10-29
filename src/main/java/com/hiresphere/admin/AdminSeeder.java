@@ -47,6 +47,7 @@ public class AdminSeeder implements ApplicationRunner {
         admin.setEmail(email);
         admin.setPasswordHash(passwordEncoder.encode(adminPassword));
         admin.setRole(Role.ADMIN);
+        admin.setEmailVerified(true);
         userRepository.save(admin);
         log.info("Admin user created: {}", email);
     }

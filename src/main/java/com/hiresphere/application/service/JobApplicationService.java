@@ -3,6 +3,8 @@ package com.hiresphere.application.service;
 import com.hiresphere.application.dto.*;
 import com.hiresphere.application.entity.ApplicationStatus;
 import com.hiresphere.application.entity.JobApplication;
+import com.hiresphere.application.event.ApplicationStatusChangedEvent;
+import com.hiresphere.application.event.ApplicationSubmittedEvent;
 import com.hiresphere.application.repository.JobApplicationRepository;
 import com.hiresphere.candidate.dto.ApplicantSnapshot;
 import com.hiresphere.candidate.service.CandidateProfileService;
@@ -20,6 +22,7 @@ import com.hiresphere.job.service.JobQueryService;
 import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.service.CompanyService;
+import com.hiresphere.user.dto.UserResponse;
 import com.hiresphere.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -71,7 +74,11 @@ public class JobApplicationService {
             throw new BadRequestException("Upload your resume before applying");
         }
 
-        String candidateName = userService.getById(userId).fullName();
+        UserResponse user = userService.getById(userId);
+        if (!user.emailVerified()) {
+            throw new AppException(HttpStatus.FORBIDDEN, "Please verify your email address before applying");
+        }
+        String candidateName = user.fullName();
         String companyName = Objects.requireNonNullElse(
                 companyService.getNames(Set.of(job.companyId())).get(job.companyId()), "Unknown company");
 
@@ -96,6 +103,10 @@ public class JobApplicationService {
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateResourceException("You have already applied to this job");
         }
+
+        eventPublisher.publishEvent(new ApplicationSubmittedEvent(
+                application.getId(), job.companyId(), userId, candidateName, job.title(), companyName));
+
         return ApplicationDetailResponse.from(application);
     }
 
@@ -116,7 +127,10 @@ public class JobApplicationService {
     @Transactional
     public ApplicationDetailResponse withdraw(Long userId, Long applicationId) {
         JobApplication application = findOwnedByCandidate(userId, applicationId);
+        ApplicationStatus from = application.getStatus();
         application.transitionTo(ApplicationStatus.WITHDRAWN, userId, null);
+        eventPublisher.publishEvent(
+                statusChanged(application, from, ApplicationStatus.WITHDRAWN, null, true));
         return ApplicationDetailResponse.from(application);
     }
 
@@ -166,8 +180,10 @@ public class JobApplicationService {
             fillsLastOpening = alreadyHired + 1 >= job.openings();
         }
 
-        application.transitionTo(req.status(), recruiterId, TextUtil.blankToNull(req.note()));
-
+        ApplicationStatus from = application.getStatus();
+        String note = TextUtil.blankToNull(req.note());
+        application.transitionTo(req.status(), recruiterId, note);
+        eventPublisher.publishEvent(statusChanged(application, from, req.status(), note, false));
         if (fillsLastOpening) {
             eventPublisher.publishEvent(new JobFilledEvent(job.id()));
         }
@@ -220,5 +236,11 @@ public class JobApplicationService {
                 }
             }
         });
+    }
+
+    private ApplicationStatusChangedEvent statusChanged(JobApplication a, ApplicationStatus from,
+                                                        ApplicationStatus to, String note, boolean byCandidate) {
+        return new ApplicationStatusChangedEvent(a.getId(), a.getCompanyId(), a.getCandidateUserId(),
+                a.getCandidateName(), a.getJobTitle(), a.getCompanyName(), from, to, note, byCandidate);
     }
 }

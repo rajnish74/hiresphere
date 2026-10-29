@@ -23,6 +23,7 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final LoginAttemptService loginAttemptService;
     private String dummyHash;
+    private final EmailVerificationService emailVerificationService;
 
 
 
@@ -47,6 +48,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(req.password()));
         user.setRole(req.role());
         userRepository.save(user);
+        emailVerificationService.sendVerification(user);
 
         return buildResponse(user, refreshTokenService.issueNewFamily(user.getId()));
     }

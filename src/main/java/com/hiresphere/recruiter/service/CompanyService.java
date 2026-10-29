@@ -12,17 +12,16 @@ import com.hiresphere.recruiter.dto.CompanyResponse;
 import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.Company;
 import com.hiresphere.recruiter.entity.CompanyStatus;
+import com.hiresphere.recruiter.event.CompanyStatusChangedEvent;
 import com.hiresphere.recruiter.repository.CompanyRepository;
 import com.hiresphere.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,6 +30,7 @@ public class CompanyService {
 
     private final CompanyRepository companyRepository;
     private final UserService userService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ---------- Recruiter side ----------
 
@@ -91,6 +91,7 @@ public class CompanyService {
     public CompanyResponse approve(Long companyId, Long adminId) {
         Company company = findById(companyId);
         company.approve(adminId);
+        publishStatus(company);
         return CompanyResponse.from(company);
     }
 
@@ -98,6 +99,7 @@ public class CompanyService {
     public CompanyResponse reject(Long companyId, Long adminId, String reason) {
         Company company = findById(companyId);
         company.reject(adminId, reason.trim());
+        publishStatus(company);
         return CompanyResponse.from(company);
     }
 
@@ -105,7 +107,13 @@ public class CompanyService {
     public CompanyResponse suspend(Long companyId, Long adminId, String reason) {
         Company company = findById(companyId);
         company.suspend(adminId, reason.trim());
+        publishStatus(company);
         return CompanyResponse.from(company);
+    }
+
+    private void publishStatus(Company c) {
+        eventPublisher.publishEvent(new CompanyStatusChangedEvent(
+                c.getId(), c.getOwnerId(), c.getName(), c.getVerificationStatus(), c.getRejectionReason()));
     }
 
     @Transactional(readOnly = true)
@@ -115,6 +123,11 @@ public class CompanyService {
         }
         return companyRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(Company::getId, Company::getName));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Long> getOwnerId(Long companyId) {
+        return companyRepository.findById(companyId).map(Company::getOwnerId);
     }
 
     // ---------- helpers ----------
@@ -136,4 +149,7 @@ public class CompanyService {
         c.setDescription(TextUtil.blankToNull(r.description()));
         c.setLocation(TextUtil.blankToNull(r.location()));
     }
+
+
+
 }

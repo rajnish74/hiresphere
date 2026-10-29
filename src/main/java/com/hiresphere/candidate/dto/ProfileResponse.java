@@ -8,12 +8,21 @@ import java.time.Instant;
 import java.util.List;
 
 public record ProfileResponse(
-        Long id, String headline, String summary, String location,
-        String linkedinUrl, String githubUrl, String portfolioUrl,
-        ProfileVisibility visibility, boolean openToWork,
-        List<String> skills, List<EducationResponse> education,
-        List<ExperienceResponse> experience, List<ProjectResponse> projects,
-        ResumeInfo resume, Instant updatedAt) {
+        Long id,
+        String headline,
+        String summary,
+        String location,
+        String linkedinUrl,
+        String githubUrl,
+        String portfolioUrl,
+        ProfileVisibility visibility,
+        boolean openToWork,
+        List<String> skills,
+        List<EducationResponse> education,
+        List<ExperienceResponse> experience,
+        List<ProjectResponse> projects,
+        ResumeInfo resume,
+        Instant updatedAt) {
 
     public static ProfileResponse from(CandidateProfile p) {
         return new ProfileResponse(

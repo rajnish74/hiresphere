@@ -7,10 +7,20 @@ import com.hiresphere.job.entity.WorkMode;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-public record PublicJobSummary(Long id, String title, Long companyId, String companyName, String location,
-                               JobType jobType, WorkMode workMode, Integer minExperienceYears,
-                               Integer maxExperienceYears, BigDecimal salaryMin, BigDecimal salaryMax,
-                               String currency, Instant publishedAt, Instant expiresAt) {
+public record PublicJobSummary(Long id,
+                               String title,
+                               Long companyId,
+                               String companyName,
+                               String location,
+                               JobType jobType,
+                               WorkMode workMode,
+                               Integer minExperienceYears,
+                               Integer maxExperienceYears,
+                               BigDecimal salaryMin,
+                               BigDecimal salaryMax,
+                               String currency,
+                               Instant publishedAt,
+                               Instant expiresAt) {
 
     public static PublicJobSummary from(Job j, String companyName) {
         return new PublicJobSummary(j.getId(), j.getTitle(), j.getCompanyId(), companyName, j.getLocation(),

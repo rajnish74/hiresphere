@@ -25,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, LoginProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, LoginProperties.class, AuthTokenProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -41,6 +41,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh", "/api/v1/auth/logout",
+                                "/api/v1/auth/verify-email", "/api/v1/auth/forgot-password",
+                                "/api/v1/auth/reset-password",
                                 "/api/v1/ping/**", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/jobs", "/api/v1/jobs/**").permitAll()
                         .anyRequest().authenticated())

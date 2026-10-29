@@ -7,8 +7,15 @@ import com.hiresphere.job.entity.WorkMode;
 
 import java.time.Instant;
 
-public record JobSummaryResponse(Long id, String title, String location, JobType jobType, WorkMode workMode,
-                                 JobStatus status, Instant publishedAt, Instant expiresAt, Instant createdAt) {
+public record JobSummaryResponse(Long id,
+                                 String title,
+                                 String location,
+                                 JobType jobType,
+                                 WorkMode workMode,
+                                 JobStatus status,
+                                 Instant publishedAt,
+                                 Instant expiresAt,
+                                 Instant createdAt) {
 
     public static JobSummaryResponse from(Job j) {
         return new JobSummaryResponse(j.getId(), j.getTitle(), j.getLocation(), j.getJobType(), j.getWorkMode(),
