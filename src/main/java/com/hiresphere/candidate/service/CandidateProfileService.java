@@ -1,5 +1,6 @@
 package com.hiresphere.candidate.service;
 
+import com.hiresphere.candidate.dto.ApplicantSnapshot;
 import com.hiresphere.candidate.dto.ProfileResponse;
 import com.hiresphere.candidate.dto.ProfileUpdateRequest;
 import com.hiresphere.candidate.dto.SkillsRequest;
@@ -62,5 +63,11 @@ public class CandidateProfileService {
     @Transactional
     public ProfileCompleteness.Result getCompleteness(Long userId) {
         return ProfileCompleteness.calculate(getOrCreate(userId));
+    }
+
+    @Transactional
+    public ApplicantSnapshot getSnapshot(Long userId) {
+        CandidateProfile p = getOrCreate(userId);
+        return new ApplicantSnapshot(p.getHeadline(), p.getResumeStorageKey(), p.getResumeOriginalName());
     }
 }

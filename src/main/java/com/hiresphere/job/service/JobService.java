@@ -151,4 +151,14 @@ public class JobService {
         }
         return closed;
     }
+
+    @Transactional
+    public void closeIfPublished(Long jobId) {
+        jobRepository.findById(jobId)
+                .filter(job -> job.getStatus() == JobStatus.PUBLISHED)
+                .ifPresent(job -> {
+                    job.close();
+                    log.info("Job {} auto-closed because all openings are filled", jobId);
+                });
+    }
 }

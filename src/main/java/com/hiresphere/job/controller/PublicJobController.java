@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/jobs")
@@ -31,17 +32,23 @@ public class PublicJobController {
             @RequestParam(required = false) Integer experience,
             @RequestParam(required = false) BigDecimal minSalary,
             @RequestParam(required = false) List<String> skills,
+            @RequestParam(required = false) Integer postedWithinDays,
             @RequestParam(defaultValue = "NEWEST") JobSort sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         JobSearchCriteria criteria = new JobSearchCriteria(q, location, jobType, workMode,
-                experience, minSalary, skills, sort);
+                experience, minSalary, skills, sort, postedWithinDays);
         return ApiResponse.ok(publicJobService.search(criteria, page, size));
     }
 
     @GetMapping("/{id}")
     public ApiResponse<PublicJobDetail> get(@PathVariable Long id) {
         return ApiResponse.ok(publicJobService.get(id));
+    }
+
+    @GetMapping("/facets")
+    public ApiResponse<Map<JobType, Long>> facets() {
+        return ApiResponse.ok(publicJobService.jobTypeFacets());
     }
 }

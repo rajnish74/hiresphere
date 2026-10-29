@@ -63,6 +63,23 @@ public class LocalFileStorageService implements FileStorageService {
         }
     }
 
+    @Override
+    public String copy(String storageKey) {
+        Path source = resolve(storageKey);
+        if (!Files.exists(source)) {
+            throw new ResourceNotFoundException("File not found");
+        }
+        String extension = storageKey.substring(storageKey.lastIndexOf('.') + 1);
+        String newKey = UUID.randomUUID() + "." + extension;
+        try {
+            Files.copy(source, resolve(newKey));
+        } catch (IOException e) {
+            log.error("Failed to copy file {}", storageKey, e);
+            throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not copy the file");
+        }
+        return newKey;
+    }
+
     private Path resolve(String key) {
         Path path = root.resolve(key).normalize();
         if (!path.startsWith(root)) {
@@ -70,4 +87,6 @@ public class LocalFileStorageService implements FileStorageService {
         }
         return path;
     }
+
+
 }

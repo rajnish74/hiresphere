@@ -6,13 +6,18 @@ import com.hiresphere.job.entity.JobStatus;
 import com.hiresphere.recruiter.entity.Company;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.skill.entity.Skill;
+import jakarta.persistence.criteria.AbstractQuery;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.From;
 import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 
@@ -22,23 +27,32 @@ public final class JobSpecifications {
     }
 
     public static Specification<Job> visibleToPublic(Instant now) {
-        return (root, query, cb) -> {
-            Subquery<Long> approvedCompany = query.subquery(Long.class);
-            Root<Company> company = approvedCompany.from(Company.class);
-            approvedCompany.select(company.<Long>get("id")).where(
-                    cb.equal(company.get("id"), root.get("companyId")),
-                    cb.equal(company.get("verificationStatus"), CompanyStatus.APPROVED));
+        return (root, query, cb) -> visiblePredicate(root, query, cb, now);
+    }
 
-            return cb.and(
-                    cb.equal(root.get("status"), JobStatus.PUBLISHED),
-                    cb.or(cb.isNull(root.get("expiresAt")),
-                            cb.greaterThan(root.<Instant>get("expiresAt"), now)),
-                    cb.exists(approvedCompany));
-        };
+
+    public static Predicate visiblePredicate(From<?, Job> root, AbstractQuery<?> query,
+                                             CriteriaBuilder cb, Instant now) {
+        Subquery<Long> approvedCompany = query.subquery(Long.class);
+        Root<Company> company = approvedCompany.from(Company.class);
+        approvedCompany.select(company.<Long>get("id")).where(
+                cb.equal(company.get("id"), root.get("companyId")),
+                cb.equal(company.get("verificationStatus"), CompanyStatus.APPROVED));
+
+        return cb.and(
+                cb.equal(root.get("status"), JobStatus.PUBLISHED),
+                cb.or(cb.isNull(root.get("expiresAt")),
+                        cb.greaterThan(root.<Instant>get("expiresAt"), now)),
+                cb.exists(approvedCompany));
     }
 
     public static Specification<Job> hasId(Long id) {
         return (root, query, cb) -> cb.equal(root.get("id"), id);
+    }
+
+    public static Specification<Job> postedWithin(int days, Instant now) {
+        Instant cutoff = now.minus(days, ChronoUnit.DAYS);
+        return (root, query, cb) -> cb.greaterThanOrEqualTo(root.<Instant>get("publishedAt"), cutoff);
     }
 
     public static Specification<Job> search(JobSearchCriteria c, Instant now) {
@@ -61,12 +75,14 @@ public final class JobSpecifications {
                     cb.lessThanOrEqualTo(root.<Integer>get("minExperienceYears"), c.experience()));
         }
         if (c.minSalary() != null) {
-            // salaryMax NULL ho (salary di hi nahi) to comparison false: wo job is filter mein nahi aati
             spec = spec.and((root, query, cb) ->
                     cb.greaterThanOrEqualTo(root.<BigDecimal>get("salaryMax"), c.minSalary()));
         }
         if (c.skills() != null && !c.skills().isEmpty()) {
             spec = spec.and(anySkill(c.skills()));
+        }
+        if (c.postedWithinDays() != null) {
+            spec = spec.and(postedWithin(c.postedWithinDays(), now));
         }
         return spec;
     }
@@ -83,7 +99,6 @@ public final class JobSpecifications {
         return (root, query, cb) -> cb.like(cb.lower(root.<String>get(field)), pattern, '\\');
     }
 
-    /** Join ki jagah EXISTS: job ek hi baar aati hai chahe kitni bhi skills match karein. */
     private static Specification<Job> anySkill(List<String> skills) {
         List<String> normalized = skills.stream()
                 .map(s -> s.trim().toLowerCase(Locale.ROOT))

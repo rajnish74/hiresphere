@@ -88,4 +88,29 @@ class JobServiceTest {
         assertThat(closed).isEqualTo(3);
         verify(jobRepository).closeExpired(eq(JobStatus.PUBLISHED), eq(JobStatus.CLOSED), any(Instant.class));
     }
+
+    @Test
+    void closeIfPublishedShouldCloseAPublishedJob() {
+        Job job = new Job();
+        job.publish();
+        when(jobRepository.findById(10L)).thenReturn(Optional.of(job));
+
+        service.closeIfPublished(10L);
+
+        assertThat(job.getStatus()).isEqualTo(JobStatus.CLOSED);
+    }
+
+    @Test
+    void closeIfPublishedShouldIgnoreAnAlreadyClosedJob() {
+        Job job = new Job();
+        job.publish();
+        job.close();
+        Instant closedAt = job.getClosedAt();
+        when(jobRepository.findById(10L)).thenReturn(Optional.of(job));
+
+        service.closeIfPublished(10L);   // exception nahi, kuch nahi badla
+
+        assertThat(job.getStatus()).isEqualTo(JobStatus.CLOSED);
+        assertThat(job.getClosedAt()).isEqualTo(closedAt);
+    }
 }

@@ -9,6 +9,8 @@ import com.hiresphere.job.dto.JobSort;
 import com.hiresphere.job.dto.PublicJobDetail;
 import com.hiresphere.job.dto.PublicJobSummary;
 import com.hiresphere.job.entity.Job;
+import com.hiresphere.job.entity.JobType;
+import com.hiresphere.job.repository.JobFacetQueries;
 import com.hiresphere.job.repository.JobRepository;
 import com.hiresphere.job.repository.JobSpecifications;
 import com.hiresphere.recruiter.service.CompanyService;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,6 +33,7 @@ public class PublicJobService {
 
     private final JobRepository jobRepository;
     private final CompanyService companyService;
+    private final JobFacetQueries facetQueries;
 
     @Transactional(readOnly = true)
     public PageResponse<PublicJobSummary> search(JobSearchCriteria criteria, int page, int size) {
@@ -78,5 +82,18 @@ public class PublicJobService {
         if (c.minSalary() != null && c.minSalary().signum() < 0) {
             throw new BadRequestException("Minimum salary cannot be negative");
         }
+        if (c.postedWithinDays() != null && (c.postedWithinDays() < 1 || c.postedWithinDays() > 90)) {
+            throw new BadRequestException("postedWithinDays must be between 1 and 90");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<JobType, Long> jobTypeFacets() {
+        Map<JobType, Long> counts = facetQueries.countByJobType(Instant.now());
+        Map<JobType, Long> complete = new EnumMap<>(JobType.class);
+        for (JobType type : JobType.values()) {
+            complete.put(type, counts.getOrDefault(type, 0L));
+        }
+        return complete;
     }
 }

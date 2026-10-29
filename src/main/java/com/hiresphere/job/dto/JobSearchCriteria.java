@@ -14,5 +14,12 @@ public record JobSearchCriteria(
         Integer experience,
         BigDecimal minSalary,
         List<String> skills,
-        JobSort sort) {
+        JobSort sort,
+        Integer postedWithinDays) {
+
+    public JobSearchCriteria(String keyword, String location, List<JobType> jobTypes,
+                             List<WorkMode> workModes, Integer experience, BigDecimal minSalary,
+                             List<String> skills, JobSort sort) {
+        this(keyword, location, jobTypes, workModes, experience, minSalary, skills, sort, null);
+    }
 }

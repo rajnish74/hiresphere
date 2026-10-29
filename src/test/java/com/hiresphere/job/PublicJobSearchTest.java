@@ -1,5 +1,6 @@
 package com.hiresphere.job;
 
+import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.job.dto.JobSearchCriteria;
 import com.hiresphere.job.dto.JobSort;
@@ -24,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -161,13 +164,14 @@ class PublicJobSearchTest {
         cc.setSalaryMax(new BigDecimal("500000"));
         jobRepository.flush();
 
-        List<PublicJobSummary> result = service.search(
+        List<String> titles = service.search(
                 new JobSearchCriteria(tag, null, null, null, null, null, null, JobSort.SALARY_HIGH),
-                0, 50).content();
+                0, 50).content().stream().map(PublicJobSummary::title).toList();
 
-        assertThat(result).extracting(PublicJobSummary::title)
-                .startsWith("A ").endsWith("B no salary " + tag);
-        assertThat(result.get(1).title()).startsWith("C ");
+        assertThat(titles).hasSize(3);
+        assertThat(titles.get(0)).startsWith("A ");          // 9 lakh, sabse zyada
+        assertThat(titles.get(1)).startsWith("C ");          // 5 lakh
+        assertThat(titles.get(2)).startsWith("B no salary"); // salary nahi, sabse last
     }
 
     @Test
@@ -198,5 +202,51 @@ class PublicJobSearchTest {
                 new JobSearchCriteria(tag + "%", null, null, null, null, null, null, null), 0, 50).content();
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void postedWithinDaysShouldHideOlderJobs() {
+        Company c = company(true);
+        job(c, "Recent", true);
+        Job old = job(c, "Old", true);
+        old.setPublishedAt(Instant.now().minus(10, ChronoUnit.DAYS));
+        jobRepository.saveAndFlush(old);
+
+        List<PublicJobSummary> lastWeek = service.search(
+                new JobSearchCriteria(tag, null, null, null, null, null, null, null, 7), 0, 50).content();
+        List<PublicJobSummary> lastMonth = service.search(
+                new JobSearchCriteria(tag, null, null, null, null, null, null, null, 30), 0, 50).content();
+
+        assertThat(lastWeek).hasSize(1);
+        assertThat(lastWeek.get(0).title()).startsWith("Recent");
+        assertThat(lastMonth).hasSize(2);
+    }
+
+    @Test
+    void postedWithinDaysOutsideAllowedRangeShouldBeRejected() {
+        for (int invalid : new int[]{0, -5, 91}) {
+            assertThatThrownBy(() -> service.search(
+                    new JobSearchCriteria(tag, null, null, null, null, null, null, null, invalid), 0, 10))
+                    .isInstanceOf(BadRequestException.class);
+        }
+    }
+
+
+    @Test
+    void facetsShouldCountOnlyVisibleJobsPerType() {
+        Map<JobType, Long> before = service.jobTypeFacets();
+
+        Company c = company(true);
+        job(c, "Full time visible", true);
+        Job intern = job(c, "Intern visible", true);
+        intern.setJobType(JobType.INTERNSHIP);
+        jobRepository.saveAndFlush(intern);
+        job(c, "Draft not counted", false);
+
+        Map<JobType, Long> after = service.jobTypeFacets();
+
+        assertThat(after.get(JobType.FULL_TIME)).isEqualTo(before.get(JobType.FULL_TIME) + 1);
+        assertThat(after.get(JobType.INTERNSHIP)).isEqualTo(before.get(JobType.INTERNSHIP) + 1);
+        assertThat(after.get(JobType.CONTRACT)).isEqualTo(before.get(JobType.CONTRACT));
     }
 }

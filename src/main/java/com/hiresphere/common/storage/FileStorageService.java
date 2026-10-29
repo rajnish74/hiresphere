@@ -12,4 +12,6 @@ public interface FileStorageService {
     Resource load(String storageKey);
 
     void deleteQuietly(String storageKey);
+
+    String copy(String storageKey);
 }
