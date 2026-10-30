@@ -7,9 +7,11 @@ import com.hiresphere.common.util.PageUtil;
 import com.hiresphere.job.dto.AdminJobSummary;
 import com.hiresphere.job.entity.Job;
 import com.hiresphere.job.entity.JobStatus;
+import com.hiresphere.job.event.JobHiddenEvent;
 import com.hiresphere.job.repository.JobRepository;
 import com.hiresphere.recruiter.service.CompanyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class JobModerationService {
 
     private final JobRepository jobRepository;
     private final CompanyService companyService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public PageResponse<AdminJobSummary> list(Boolean hidden, JobStatus status, int page, int size) {
@@ -45,7 +48,10 @@ public class JobModerationService {
     @Transactional
     public AdminJobSummary hide(Long jobId, String reason) {
         Job job = findJob(jobId);
-        job.hideByAdmin(reason.trim());
+        String cleanReason = reason.trim();
+        job.hideByAdmin(cleanReason);
+        eventPublisher.publishEvent(
+                new JobHiddenEvent(job.getId(), job.getCompanyId(), job.getTitle(), cleanReason));
         return summary(job);
     }
 

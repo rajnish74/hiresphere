@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.time.Instant;
+
 @Entity
 @Table(name = "users")
 @SQLRestriction("deleted = false")
@@ -45,4 +47,7 @@ public class User extends BaseEntity {
     public void invalidateSessions() {
         tokenVersion++;
     }
+
+    @Setter(AccessLevel.NONE)
+    private Instant lastLoginAt;
 }

@@ -12,6 +12,7 @@ import com.hiresphere.user.dto.UserStats;
 import com.hiresphere.user.entity.Role;
 import com.hiresphere.user.entity.User;
 import com.hiresphere.user.event.SessionsInvalidatedEvent;
+import com.hiresphere.user.event.UserBlockedEvent;
 import com.hiresphere.user.repository.UserRepository;
 import com.hiresphere.user.repository.UserSpecifications;
 import lombok.RequiredArgsConstructor;
@@ -67,24 +68,26 @@ public class UserService {
     }
 
     @Transactional
-    public AdminUserResponse block(Long adminId, Long targetId) {
+    public AdminUserResponse block(Long adminId, Long targetId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new BadRequestException("A reason is required to block a user");
+        }
         if (adminId.equals(targetId)) {
             throw new BadRequestException("You cannot block your own account");
         }
         User target = findUser(targetId);
         if (target.getRole() == Role.ADMIN) {
-            // Admin accounts API se band nahi hote: admin war aur "aakhri admin locked out" dono se bachav
             throw new AppException(HttpStatus.FORBIDDEN, "Admin accounts cannot be blocked from the API");
         }
         if (!target.isEnabled()) {
             throw new AppException(HttpStatus.CONFLICT, "User is already blocked");
         }
         target.setEnabled(false);
-        target.invalidateSessions();   // access tokens turant bekar
+        target.invalidateSessions();
         events.publishEvent(new SessionsInvalidatedEvent(targetId));
+        events.publishEvent(new UserBlockedEvent(targetId, reason.trim()));
         return AdminUserResponse.from(target);
     }
-
     @Transactional
     public AdminUserResponse unblock(Long targetId) {
         User target = findUser(targetId);

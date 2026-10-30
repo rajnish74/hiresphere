@@ -3,6 +3,7 @@ package com.hiresphere.user.repository;
 import com.hiresphere.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -27,6 +28,15 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     long countByEmailVerifiedFalse();
 
     long countByCreatedAtAfter(Instant since);
+
+    @Modifying
+    @Query("""
+        update User u
+           set u.lastLoginAt = :now
+         where u.id = :id
+           and (u.lastLoginAt is null or u.lastLoginAt < :threshold)
+        """)
+    int touchLastLogin(@Param("id") Long id, @Param("now") Instant now, @Param("threshold") Instant threshold);
 
 
 }

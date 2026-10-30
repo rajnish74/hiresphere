@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, sans-serif; color: #222; max-width: 560px; margin: auto;">
+<h2 style="color: #b91c1c;">Your account has been suspended</h2>
+<p>Hi <span th:text="${name}">there</span>,</p>
+<p>Your HireSphere account has been suspended by an administrator. You have been signed out
+    on all devices and cannot log in for now.</p>
+<div th:if="${reason != null}" style="border-left: 4px solid #b91c1c; padding: 8px 14px; background: #fdf2f2;">
+    <em>Reason:</em><br/>
+    <span th:text="${reason}">Reason</span>
+</div>
+<p>If you believe this is a mistake, please contact our support team.</p>
+<p style="color: #888; font-size: 12px;">HireSphere</p>
+</body>
+</html>

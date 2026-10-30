@@ -50,8 +50,8 @@ public class AdminActionService {
 
     @Transactional
     public AdminUserResponse blockUser(Long adminId, Long userId, String reason) {
-        AdminUserResponse result = userService.block(adminId, userId);   // rules yahin lagte hain
-        refreshTokenService.revokeAllForUser(userId);                    // naya access token nahi mil sakta
+        AdminUserResponse result = userService.block(adminId, userId, reason);
+        refreshTokenService.revokeAllForUser(userId);
         auditService.record(adminId, AuditAction.USER_BLOCKED, AuditTargetType.USER, userId, reason);
         return result;
     }

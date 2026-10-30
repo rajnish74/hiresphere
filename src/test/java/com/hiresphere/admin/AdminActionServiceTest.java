@@ -46,7 +46,7 @@ class AdminActionServiceTest {
 
     @Test
     void blockingAUserShouldRevokeRefreshTokensAndRecordAudit() {
-        when(userService.block(1L, 5L))
+        when(userService.block(1L, 5L, "Spam applications"))
                 .thenReturn(new AdminUserResponse(5L, "V", "v@test.com", Role.CANDIDATE, false, true, null));
 
         service.blockUser(1L, 5L, "Spam applications");
@@ -57,7 +57,7 @@ class AdminActionServiceTest {
 
     @Test
     void aRefusedBlockShouldRevokeAndRecordNothing() {
-        when(userService.block(1L, 1L)).thenThrow(new BadRequestException("You cannot block your own account"));
+        when(userService.block(1L, 1L, "x")).thenThrow(new BadRequestException("You cannot block your own account"));
 
         assertThatThrownBy(() -> service.blockUser(1L, 1L, "x")).isInstanceOf(BadRequestException.class);
 

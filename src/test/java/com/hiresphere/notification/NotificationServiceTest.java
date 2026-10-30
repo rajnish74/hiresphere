@@ -7,11 +7,15 @@ import com.hiresphere.auth.event.EmailVerificationRequestedEvent;
 import com.hiresphere.auth.event.PasswordChangedEvent;
 import com.hiresphere.auth.event.PasswordResetRequestedEvent;
 import com.hiresphere.config.EmailProperties;
+import com.hiresphere.job.event.JobHiddenEvent;
 import com.hiresphere.notification.service.EmailService;
 import com.hiresphere.notification.service.NotificationService;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.event.CompanyStatusChangedEvent;
 import com.hiresphere.recruiter.service.CompanyService;
+import com.hiresphere.user.dto.UserResponse;
+import com.hiresphere.user.entity.Role;
+import com.hiresphere.user.event.UserBlockedEvent;
 import com.hiresphere.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -179,5 +183,29 @@ class NotificationServiceTest {
                 .doesNotContain("secret-token");
         assertThat(new EmailVerificationRequestedEvent("Asha", "a@test.com", "secret-token", 24).toString())
                 .doesNotContain("secret-token");
+    }
+
+    @Test
+    void blockedUserShouldGetAnEmailWithTheReason() {
+        when(userService.getById(5L)).thenReturn(new UserResponse(5L, "Vik", "vik@test.com", Role.CANDIDATE, true));
+
+        service.onUserBlocked(new UserBlockedEvent(5L, "Spam applications"));
+
+        verify(emailService).send(eq("vik@test.com"), eq("Your HireSphere account has been suspended"),
+                eq("account-blocked"), modelCaptor.capture());
+        assertThat(modelCaptor.getValue().get("name")).isEqualTo("Vik");
+        assertThat(modelCaptor.getValue().get("reason")).isEqualTo("Spam applications");
+    }
+
+    @Test
+    void hiddenJobShouldEmailTheCompanyOwnerWithTheReason() {
+        stubRecruiter();
+
+        service.onJobHidden(new JobHiddenEvent(20L, 5L, "Java Dev", "Misleading salary"));
+
+        verify(emailService).send(eq("rec@test.com"), eq("Your job has been hidden: Java Dev"),
+                eq("job-hidden-recruiter"), modelCaptor.capture());
+        assertThat(modelCaptor.getValue().get("reason")).isEqualTo("Misleading salary");
+        assertThat(modelCaptor.getValue().get("link").toString()).endsWith("/recruiter/jobs/20");
     }
 }

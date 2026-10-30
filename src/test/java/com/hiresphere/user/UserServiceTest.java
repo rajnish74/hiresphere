@@ -7,6 +7,7 @@ import com.hiresphere.user.dto.AdminUserResponse;
 import com.hiresphere.user.entity.Role;
 import com.hiresphere.user.entity.User;
 import com.hiresphere.user.event.SessionsInvalidatedEvent;
+import com.hiresphere.user.event.UserBlockedEvent;
 import com.hiresphere.user.repository.UserRepository;
 import com.hiresphere.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +56,15 @@ class UserServiceTest {
 
     @Test
     void adminCannotBlockOwnAccount() {
-        assertThatThrownBy(() -> service.block(1L, 1L)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.block(1L, 1L, "x")).isInstanceOf(BadRequestException.class);
+
+        verify(userRepository, never()).findById(any());
+        verify(events, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void blockingWithoutAReasonShouldFail() {
+        assertThatThrownBy(() -> service.block(1L, 5L, "  ")).isInstanceOf(BadRequestException.class);
 
         verify(userRepository, never()).findById(any());
     }
@@ -63,7 +73,7 @@ class UserServiceTest {
     void adminAccountsCannotBeBlockedThroughTheApi() {
         when(userRepository.findById(2L)).thenReturn(Optional.of(user(2L, Role.ADMIN, true)));
 
-        assertThatThrownBy(() -> service.block(1L, 2L))
+        assertThatThrownBy(() -> service.block(1L, 2L, "x"))
                 .isInstanceOfSatisfying(AppException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
     }
@@ -72,24 +82,28 @@ class UserServiceTest {
     void alreadyBlockedUserShouldGiveConflict() {
         when(userRepository.findById(5L)).thenReturn(Optional.of(user(5L, Role.CANDIDATE, false)));
 
-        assertThatThrownBy(() -> service.block(1L, 5L))
+        assertThatThrownBy(() -> service.block(1L, 5L, "x"))
                 .isInstanceOfSatisfying(AppException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.CONFLICT));
+        verify(events, never()).publishEvent(any(Object.class));
     }
 
     @Test
-    void blockingShouldDisableTheUserBumpTokenVersionAndAnnounceIt() {
+    void blockingShouldDisableBumpTokenVersionAndAnnounceBothEvents() {
         User target = user(5L, Role.CANDIDATE, true);
         when(userRepository.findById(5L)).thenReturn(Optional.of(target));
 
-        AdminUserResponse response = service.block(1L, 5L);
+        AdminUserResponse response = service.block(1L, 5L, "  Spam applications ");
 
         assertThat(target.isEnabled()).isFalse();
         assertThat(target.getTokenVersion()).isEqualTo(1);
         assertThat(response.enabled()).isFalse();
-        ArgumentCaptor<SessionsInvalidatedEvent> event = ArgumentCaptor.forClass(SessionsInvalidatedEvent.class);
-        verify(events).publishEvent(event.capture());
-        assertThat(event.getValue().userId()).isEqualTo(5L);
+
+        ArgumentCaptor<Object> published = ArgumentCaptor.forClass(Object.class);
+        verify(events, times(2)).publishEvent(published.capture());
+        assertThat(published.getAllValues()).contains(
+                new SessionsInvalidatedEvent(5L),
+                new UserBlockedEvent(5L, "Spam applications"));
     }
 
     @Test
@@ -116,6 +130,6 @@ class UserServiceTest {
     void unknownUserShouldGiveNotFound() {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.block(1L, 99L)).isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.block(1L, 99L, "x")).isInstanceOf(ResourceNotFoundException.class);
     }
 }

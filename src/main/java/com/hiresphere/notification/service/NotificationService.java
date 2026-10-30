@@ -7,9 +7,12 @@ import com.hiresphere.auth.event.EmailVerificationRequestedEvent;
 import com.hiresphere.auth.event.PasswordChangedEvent;
 import com.hiresphere.auth.event.PasswordResetRequestedEvent;
 import com.hiresphere.config.EmailProperties;
+import com.hiresphere.job.event.JobHiddenEvent;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.event.CompanyStatusChangedEvent;
 import com.hiresphere.recruiter.service.CompanyService;
+import com.hiresphere.user.dto.UserResponse;
+import com.hiresphere.user.event.UserBlockedEvent;
 import com.hiresphere.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -90,6 +93,24 @@ public class NotificationService {
             case SUSPENDED -> "Your company has been suspended. Its jobs are hidden and you cannot publish or manage applications.";
             default -> "Your company status has been updated.";
         };
+    }
+
+    public void onUserBlocked(UserBlockedEvent e) {
+        UserResponse user = userService.getById(e.userId());
+        Map<String, Object> model = new HashMap<>();
+        model.put("name", user.fullName());
+        model.put("reason", e.reason());
+        emailService.send(user.email(), "Your HireSphere account has been suspended", "account-blocked", model);
+    }
+
+    public void onJobHidden(JobHiddenEvent e) {
+        recruiterEmail(e.companyId()).ifPresent(to -> {
+            Map<String, Object> model = new HashMap<>();
+            model.put("jobTitle", e.jobTitle());
+            model.put("reason", e.reason());
+            model.put("link", props.frontendUrl() + "/recruiter/jobs/" + e.jobId());
+            emailService.send(to, "Your job has been hidden: " + e.jobTitle(), "job-hidden-recruiter", model);
+        });
     }
 
     // ---------- helpers ----------
