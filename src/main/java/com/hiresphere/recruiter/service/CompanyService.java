@@ -4,6 +4,7 @@ import com.hiresphere.common.dto.PageResponse;
 import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.DuplicateResourceException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
+import com.hiresphere.common.util.CountUtil;
 import com.hiresphere.common.util.PageUtil;
 import com.hiresphere.common.util.TextUtil;
 import com.hiresphere.recruiter.dto.AdminCompanyResponse;
@@ -71,6 +72,11 @@ public class CompanyService {
         Company c = companyRepository.findByOwnerId(userId)
                 .orElseThrow(() -> new BadRequestException("Create your company profile first"));
         return new CompanySummary(c.getId(), c.getName(), c.getVerificationStatus());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<CompanyStatus, Long> countByStatus() {
+        return CountUtil.toEnumMap(CompanyStatus.class, companyRepository.countGroupedByStatus());
     }
 
     // ---------- Admin side ----------

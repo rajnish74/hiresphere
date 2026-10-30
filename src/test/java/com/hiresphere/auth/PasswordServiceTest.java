@@ -11,6 +11,7 @@ import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.config.AuthTokenProperties;
 import com.hiresphere.user.entity.Role;
 import com.hiresphere.user.entity.User;
+import com.hiresphere.user.event.SessionsInvalidatedEvent;
 import com.hiresphere.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -175,5 +176,42 @@ class PasswordServiceTest {
         assertThat(u.getPasswordHash()).isEqualTo("NEW_HASH");
         verify(refreshTokenService).revokeAllForUser(7L);
         verify(events).publishEvent(any(PasswordChangedEvent.class));
+    }
+
+    @Test
+    void resetShouldRejectAPasswordContainingTheUsersName() {
+        when(authTokenService.consume("raw", AuthTokenType.PASSWORD_RESET)).thenReturn(7L);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user()));
+
+        assertThatThrownBy(() -> service.reset("raw", "Asha@2026xyz"))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(passwordEncoder, never()).encode(any());
+        verify(refreshTokenService, never()).revokeAllForUser(any());
+        verify(events, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void changeShouldRejectAPasswordContainingTheUsersName() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user()));
+        when(passwordEncoder.matches("OldPass123", "OLD_HASH")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.change(7L, "OldPass123", "Asha12345"))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(refreshTokenService, never()).revokeAllForUser(any());
+    }
+
+    @Test
+    void resetShouldInvalidateAccessTokensOfExistingSessions() {
+        User u = user();
+        when(authTokenService.consume("raw", AuthTokenType.PASSWORD_RESET)).thenReturn(7L);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(u));
+        when(passwordEncoder.encode("Blue-Tiger-Runs-42")).thenReturn("NEW_HASH");
+
+        service.reset("raw", "Blue-Tiger-Runs-42");
+
+        assertThat(u.getTokenVersion()).isEqualTo(1);
+        verify(events).publishEvent(any(SessionsInvalidatedEvent.class));
     }
 }

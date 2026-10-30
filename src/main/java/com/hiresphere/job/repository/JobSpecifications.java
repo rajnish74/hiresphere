@@ -41,6 +41,7 @@ public final class JobSpecifications {
 
         return cb.and(
                 cb.equal(root.get("status"), JobStatus.PUBLISHED),
+                cb.isFalse(root.<Boolean>get("hidden")),
                 cb.or(cb.isNull(root.get("expiresAt")),
                         cb.greaterThan(root.<Instant>get("expiresAt"), now)),
                 cb.exists(approvedCompany));

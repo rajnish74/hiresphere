@@ -11,25 +11,12 @@ import java.time.Instant;
 import java.util.List;
 
 public record JobResponse(
-        Long id,
-        Long companyId,
-        String title,
-        String description,
-        String location,
-        JobType jobType,
-        WorkMode workMode,
-        Integer minExperienceYears,
-        Integer maxExperienceYears,
-        BigDecimal salaryMin,
-        BigDecimal salaryMax,
-        String currency,
-        Integer openings,
-        JobStatus status,
-        List<String> skills,
-        Instant publishedAt,
-        Instant expiresAt,
-        Instant closedAt,
-        Instant createdAt) {
+        Long id, Long companyId, String title, String description, String location,
+        JobType jobType, WorkMode workMode, Integer minExperienceYears, Integer maxExperienceYears,
+        BigDecimal salaryMin, BigDecimal salaryMax, String currency, Integer openings,
+        JobStatus status, List<String> skills,
+        Instant publishedAt, Instant expiresAt, Instant closedAt, Instant createdAt,
+        boolean hidden, String moderationReason) {
 
     public static JobResponse from(Job j) {
         return new JobResponse(
@@ -51,6 +38,8 @@ public record JobResponse(
                 j.getPublishedAt(),
                 j.getExpiresAt(),
                 j.getClosedAt(),
-                j.getCreatedAt());
+                j.getCreatedAt(),
+                j.isHidden(),
+                j.getModerationReason());
     }
 }

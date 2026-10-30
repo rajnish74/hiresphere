@@ -38,6 +38,7 @@ public class AuthService {
             throw new BadRequestException("Cannot register with this role");
         }
         String email = normalize(req.email());
+        PasswordPolicy.require(req.password(), email);
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateResourceException("Email already registered");
         }
@@ -48,11 +49,10 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(req.password()));
         user.setRole(req.role());
         userRepository.save(user);
-        emailVerificationService.sendVerification(user);
 
+        emailVerificationService.sendVerification(user);
         return buildResponse(user, refreshTokenService.issueNewFamily(user.getId()));
     }
-
     // readOnly nahi:
     @Transactional
     public AuthResponse login(LoginRequest req, String clientIp) {

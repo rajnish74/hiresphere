@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificationExecutor<Job> {
@@ -36,4 +37,10 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
     int closeExpired(@Param("published") JobStatus published,
                      @Param("closed") JobStatus closed,
                      @Param("now") Instant now);
+
+
+    @Query("select j.status, count(j) from Job j group by j.status")
+    List<Object[]> countGroupedByStatus();
+
+    long countByHiddenTrue();
 }

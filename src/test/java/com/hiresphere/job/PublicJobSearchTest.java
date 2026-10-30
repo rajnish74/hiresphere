@@ -249,4 +249,20 @@ class PublicJobSearchTest {
         assertThat(after.get(JobType.INTERNSHIP)).isEqualTo(before.get(JobType.INTERNSHIP) + 1);
         assertThat(after.get(JobType.CONTRACT)).isEqualTo(before.get(JobType.CONTRACT));
     }
+
+    @Test
+    void jobHiddenByAdminShouldDisappearAndReappearWhenUnhidden() {
+        Company c = company(true);
+        Job j = job(c, "Moderated", true);
+        assertThat(searchByTag()).hasSize(1);
+
+        j.hideByAdmin("Misleading salary");
+        jobRepository.saveAndFlush(j);
+        assertThat(searchByTag()).isEmpty();
+        assertThatThrownBy(() -> service.get(j.getId())).isInstanceOf(ResourceNotFoundException.class);
+
+        j.unhideByAdmin();
+        jobRepository.saveAndFlush(j);
+        assertThat(searchByTag()).hasSize(1);
+    }
 }

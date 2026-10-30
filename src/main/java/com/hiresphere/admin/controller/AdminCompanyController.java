@@ -1,6 +1,6 @@
-
 package com.hiresphere.admin.controller;
 
+import com.hiresphere.admin.service.AdminActionService;
 import com.hiresphere.common.dto.ApiResponse;
 import com.hiresphere.common.dto.PageResponse;
 import com.hiresphere.recruiter.dto.AdminCompanyResponse;
@@ -22,58 +22,34 @@ import org.springframework.web.bind.annotation.*;
 public class AdminCompanyController {
 
     private final CompanyService companyService;
+    private final AdminActionService actions;
 
     @GetMapping
     public ApiResponse<PageResponse<AdminCompanyResponse>> list(
             @RequestParam(defaultValue = "PENDING") CompanyStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-
-        return ApiResponse.ok(
-                companyService.listByStatus(status, page, size)
-        );
+        return ApiResponse.ok(companyService.listByStatus(status, page, size));
     }
 
     @PostMapping("/{id}/approve")
-    public ApiResponse<CompanyResponse> approve(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Long id) {
-
-        return ApiResponse.ok(
-                "Company approved",
-                companyService.approve(id, Long.valueOf(jwt.getSubject()))
-        );
+    public ApiResponse<CompanyResponse> approve(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
+        return ApiResponse.ok("Company approved", actions.approveCompany(adminId(jwt), id));
     }
 
     @PostMapping("/{id}/reject")
-    public ApiResponse<CompanyResponse> reject(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Long id,
-            @Valid @RequestBody ReasonRequest request) {
-
-        return ApiResponse.ok(
-                "Company rejected",
-                companyService.reject(
-                        id,
-                        Long.valueOf(jwt.getSubject()),
-                        request.reason()
-                )
-        );
+    public ApiResponse<CompanyResponse> reject(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id,
+                                               @Valid @RequestBody ReasonRequest request) {
+        return ApiResponse.ok("Company rejected", actions.rejectCompany(adminId(jwt), id, request.reason()));
     }
 
     @PostMapping("/{id}/suspend")
-    public ApiResponse<CompanyResponse> suspend(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Long id,
-            @Valid @RequestBody ReasonRequest request) {
+    public ApiResponse<CompanyResponse> suspend(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id,
+                                                @Valid @RequestBody ReasonRequest request) {
+        return ApiResponse.ok("Company suspended", actions.suspendCompany(adminId(jwt), id, request.reason()));
+    }
 
-        return ApiResponse.ok(
-                "Company suspended",
-                companyService.suspend(
-                        id,
-                        Long.valueOf(jwt.getSubject()),
-                        request.reason()
-                )
-        );
+    private Long adminId(Jwt jwt) {
+        return Long.valueOf(jwt.getSubject());
     }
 }

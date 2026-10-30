@@ -16,6 +16,8 @@ import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.service.CompanyService;
 import com.hiresphere.skill.service.SkillService;
+import com.hiresphere.user.dto.UserResponse;
+import com.hiresphere.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +37,7 @@ public class JobService {
     private final JobRepository jobRepository;
     private final CompanyService companyService;
     private final SkillService skillService;
+    private final UserService userService;
 
     @Transactional
     public JobResponse create(Long userId, JobRequest req) {
@@ -82,6 +85,15 @@ public class JobService {
         if (company.status() != CompanyStatus.APPROVED) {
             throw new AppException(HttpStatus.FORBIDDEN,
                     "Your company must be approved by an admin before you can publish jobs");
+        }
+        if (job.isHidden()) {
+            throw new AppException(HttpStatus.FORBIDDEN,
+                    "This job has been hidden by an administrator and cannot be published");
+        }
+        UserResponse user = userService.getById(userId);
+        if (!user.emailVerified()) {
+            throw new AppException(HttpStatus.FORBIDDEN,
+                    "Please verify your email address before publishing jobs");
         }
         if (job.getExpiresAt() != null && job.getExpiresAt().isBefore(Instant.now())) {
             throw new BadRequestException("The expiry date is in the past. Update the job before publishing.");

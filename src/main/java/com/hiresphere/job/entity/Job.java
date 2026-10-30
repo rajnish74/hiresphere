@@ -98,4 +98,28 @@ public class Job extends BaseEntity {
         }
         status = target;
     }
+
+    @Setter(AccessLevel.NONE)
+    @Column(nullable = false)
+    private boolean hidden = false;
+
+    @Setter(AccessLevel.NONE)
+    @Column(length = 500)
+    private String moderationReason;
+
+    public void hideByAdmin(String reason) {
+        if (hidden) {
+            throw new AppException(HttpStatus.CONFLICT, "Job is already hidden");
+        }
+        hidden = true;
+        moderationReason = reason;
+    }
+
+    public void unhideByAdmin() {
+        if (!hidden) {
+            throw new AppException(HttpStatus.CONFLICT, "Job is not hidden");
+        }
+        hidden = false;
+        moderationReason = null;
+    }
 }

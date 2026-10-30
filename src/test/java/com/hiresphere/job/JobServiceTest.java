@@ -10,6 +10,9 @@ import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.service.CompanyService;
 import com.hiresphere.skill.service.SkillService;
+import com.hiresphere.user.dto.UserResponse;
+import com.hiresphere.user.entity.Role;
+import com.hiresphere.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,11 +41,17 @@ class JobServiceTest {
 
     private JobService service;
 
+    @Mock
+    private UserService userService;
+
     @BeforeEach
     void setUp() {
-        service = new JobService(jobRepository, companyService, skillService);
+        service = new JobService(jobRepository, companyService, skillService, userService);
     }
 
+    private UserResponse recruiter(boolean verified) {
+        return new UserResponse(1L, "Maya", "maya@test.com", Role.RECRUITER, verified);
+    }
     @Test
     void publishShouldFailWhenCompanyIsNotApproved() {
         Job job = new Job();
@@ -61,6 +70,7 @@ class JobServiceTest {
         when(companyService.getOwnCompanySummary(1L))
                 .thenReturn(new CompanySummary(5L, "Demo Corp", CompanyStatus.APPROVED));
         when(jobRepository.findByIdAndCompanyId(10L, 5L)).thenReturn(Optional.of(job));
+        when(userService.getById(1L)).thenReturn(recruiter(true));
 
         JobResponse response = service.publish(1L, 10L);
 
@@ -112,5 +122,35 @@ class JobServiceTest {
 
         assertThat(job.getStatus()).isEqualTo(JobStatus.CLOSED);
         assertThat(job.getClosedAt()).isEqualTo(closedAt);
+    }
+
+    @Test
+    void publishShouldFailWhenRecruiterEmailIsNotVerified() {
+        Job job = new Job();
+        when(companyService.getOwnCompanySummary(1L))
+                .thenReturn(new CompanySummary(5L, "Demo Corp", CompanyStatus.APPROVED));
+        when(jobRepository.findByIdAndCompanyId(10L, 5L)).thenReturn(Optional.of(job));
+        when(userService.getById(1L)).thenReturn(recruiter(false));
+
+        assertThatThrownBy(() -> service.publish(1L, 10L))
+                .isInstanceOf(AppException.class)
+                .hasMessageContaining("verify your email");
+
+        assertThat(job.getStatus()).isEqualTo(JobStatus.DRAFT);
+    }
+
+    @Test
+    void publishShouldFailForAJobHiddenByAdmin() {
+        Job job = new Job();
+        job.hideByAdmin("Misleading salary");
+        when(companyService.getOwnCompanySummary(1L))
+                .thenReturn(new CompanySummary(5L, "Demo Corp", CompanyStatus.APPROVED));
+        when(jobRepository.findByIdAndCompanyId(10L, 5L)).thenReturn(Optional.of(job));
+
+        assertThatThrownBy(() -> service.publish(1L, 10L))
+                .isInstanceOf(AppException.class)
+                .hasMessageContaining("hidden");
+
+        assertThat(job.getStatus()).isEqualTo(JobStatus.DRAFT);
     }
 }

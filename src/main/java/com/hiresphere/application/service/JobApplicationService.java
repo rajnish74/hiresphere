@@ -14,6 +14,7 @@ import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.DuplicateResourceException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.storage.FileStorageService;
+import com.hiresphere.common.util.CountUtil;
 import com.hiresphere.common.util.PageUtil;
 import com.hiresphere.common.util.TextUtil;
 import com.hiresphere.job.dto.JobRef;
@@ -36,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
 import java.util.*;
 
 @Service
@@ -210,6 +212,17 @@ public class JobApplicationService {
         }
         applicationRepository.countByStatus(jobId).forEach(row -> counts.put(row.status(), row.total()));
         return counts;
+    }
+
+
+    @Transactional(readOnly = true)
+    public Map<ApplicationStatus, Long> platformStatusCounts() {
+        return CountUtil.toEnumMap(ApplicationStatus.class, applicationRepository.countGroupedByStatus());
+    }
+
+    @Transactional(readOnly = true)
+    public long countSince(Instant since) {
+        return applicationRepository.countByCreatedAtAfter(since);
     }
 
     // =====================  helpers  =====================

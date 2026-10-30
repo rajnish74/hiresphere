@@ -2,6 +2,7 @@ package com.hiresphere.user.entity;
 
 import com.hiresphere.common.entity.BaseEntity;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -36,4 +37,12 @@ public class User extends BaseEntity {
 
     @Column(nullable = false)
     private boolean emailVerified = false;
+
+    @Setter(AccessLevel.NONE)
+    @Column(nullable = false)
+    private int tokenVersion = 0;
+
+    public void invalidateSessions() {
+        tokenVersion++;
+    }
 }

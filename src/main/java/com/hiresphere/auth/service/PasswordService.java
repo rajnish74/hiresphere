@@ -8,6 +8,7 @@ import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.util.FixedWindowLimiter;
 import com.hiresphere.config.AuthTokenProperties;
 import com.hiresphere.user.entity.User;
+import com.hiresphere.user.event.SessionsInvalidatedEvent;
 import com.hiresphere.user.repository.UserRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -64,13 +65,17 @@ public class PasswordService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(HttpStatus.BAD_REQUEST, "Invalid or expired token"));
 
+        PasswordPolicy.require(newPassword, user.getEmail());
+
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setEmailVerified(true);
+        user.invalidateSessions();   // purane access tokens bhi turant bekar
 
         refreshTokenService.revokeAllForUser(userId);
         authTokenService.invalidateAll(userId, AuthTokenType.PASSWORD_RESET);
 
         events.publishEvent(new PasswordChangedEvent(user.getFullName(), user.getEmail()));
+        events.publishEvent(new SessionsInvalidatedEvent(userId));
     }
 
     @Transactional
@@ -84,11 +89,15 @@ public class PasswordService {
         if (currentPassword.equals(newPassword)) {
             throw new BadRequestException("New password must be different from the current password");
         }
+        PasswordPolicy.require(newPassword, user.getEmail());
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.invalidateSessions();
+
         refreshTokenService.revokeAllForUser(userId);
         authTokenService.invalidateAll(userId, AuthTokenType.PASSWORD_RESET);
 
         events.publishEvent(new PasswordChangedEvent(user.getFullName(), user.getEmail()));
+        events.publishEvent(new SessionsInvalidatedEvent(userId));
     }
 }
