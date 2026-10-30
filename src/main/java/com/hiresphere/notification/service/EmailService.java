@@ -100,4 +100,8 @@ public class EmailService {
             log.error("Could not write email log", e);
         }
     }
+
+    public void logSkipped(String to, String subject, String template) {
+        record(to, subject.replaceAll("[\\r\\n]+", " ").trim(), template, EmailStatus.SKIPPED, 0, null);
+    }
 }

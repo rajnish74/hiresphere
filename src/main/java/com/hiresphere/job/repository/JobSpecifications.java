@@ -18,6 +18,7 @@ import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -28,6 +29,10 @@ public final class JobSpecifications {
 
     public static Specification<Job> visibleToPublic(Instant now) {
         return (root, query, cb) -> visiblePredicate(root, query, cb, now);
+    }
+
+    public static Specification<Job> hasIdIn(Collection<Long> ids) {
+        return (root, query, cb) -> root.get("id").in(ids);
     }
 
 

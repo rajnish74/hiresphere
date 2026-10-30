@@ -22,9 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -95,5 +93,20 @@ public class PublicJobService {
             complete.put(type, counts.getOrDefault(type, 0L));
         }
         return complete;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, PublicJobSummary> findVisibleSummaries(Collection<Long> jobIds) {
+        if (jobIds.isEmpty()) {
+            return Map.of();
+        }
+        Specification<Job> spec = JobSpecifications.visibleToPublic(Instant.now())
+                .and(JobSpecifications.hasIdIn(jobIds));
+        List<Job> jobs = jobRepository.findAll(spec);
+
+        Set<Long> companyIds = jobs.stream().map(Job::getCompanyId).collect(Collectors.toSet());
+        Map<Long, String> names = companyService.getNames(companyIds);   // ek hi query
+        return jobs.stream().collect(Collectors.toMap(Job::getId,
+                j -> PublicJobSummary.from(j, names.get(j.getCompanyId()))));
     }
 }

@@ -1,10 +1,8 @@
 package com.hiresphere.candidate.service;
 
-import com.hiresphere.candidate.dto.ApplicantSnapshot;
-import com.hiresphere.candidate.dto.ProfileResponse;
-import com.hiresphere.candidate.dto.ProfileUpdateRequest;
-import com.hiresphere.candidate.dto.SkillsRequest;
+import com.hiresphere.candidate.dto.*;
 import com.hiresphere.candidate.entity.CandidateProfile;
+import com.hiresphere.candidate.entity.ProfileVisibility;
 import com.hiresphere.candidate.repository.CandidateProfileRepository;
 import com.hiresphere.common.util.TextUtil;
 import com.hiresphere.skill.entity.Skill;
@@ -13,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -69,5 +68,15 @@ public class CandidateProfileService {
     public ApplicantSnapshot getSnapshot(Long userId) {
         CandidateProfile p = getOrCreate(userId);
         return new ApplicantSnapshot(p.getHeadline(), p.getResumeStorageKey(), p.getResumeOriginalName());
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<ProfileVisibility> findVisibility(Long userId) {
+        return profileRepository.findByUserId(userId).map(CandidateProfile::getVisibility);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<CandidateProfileView> findView(Long userId, String fullName) {
+        return profileRepository.findByUserId(userId).map(p -> CandidateProfileView.from(p, fullName));
     }
 }

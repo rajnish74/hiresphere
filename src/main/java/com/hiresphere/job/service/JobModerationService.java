@@ -80,4 +80,16 @@ public class JobModerationService {
         String name = companyService.getNames(Set.of(job.getCompanyId())).get(job.getCompanyId());
         return AdminJobSummary.from(job, name);
     }
+
+    @Transactional
+    public boolean hideIfNotHidden(Long jobId, String reason) {
+        Job job = findJob(jobId);
+        if (job.isHidden()) {
+            return false;
+        }
+        String cleanReason = reason.trim();
+        job.hideByAdmin(cleanReason);
+        eventPublisher.publishEvent(new JobHiddenEvent(job.getId(), job.getCompanyId(), job.getTitle(), cleanReason));
+        return true;
+    }
 }

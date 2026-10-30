@@ -132,4 +132,17 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> service.block(1L, 99L, "x")).isInstanceOf(ResourceNotFoundException.class);
     }
+
+    @Test
+    void activeCandidateNameShouldBeReturnedOnlyForEnabledCandidates() {
+        when(userRepository.findById(5L)).thenReturn(Optional.of(user(5L, Role.CANDIDATE, true)));
+        when(userRepository.findById(6L)).thenReturn(Optional.of(user(6L, Role.CANDIDATE, false)));
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user(7L, Role.RECRUITER, true)));
+        when(userRepository.findById(8L)).thenReturn(Optional.empty());
+
+        assertThat(service.findActiveCandidateName(5L)).contains("User 5");
+        assertThat(service.findActiveCandidateName(6L)).isEmpty();
+        assertThat(service.findActiveCandidateName(7L)).isEmpty();
+        assertThat(service.findActiveCandidateName(8L)).isEmpty();
+    }
 }

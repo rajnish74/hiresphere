@@ -44,4 +44,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     List<Object[]> countGroupedByStatus();
 
     long countByCreatedAtAfter(Instant since);
+
+    boolean existsByCompanyIdAndCandidateUserIdAndStatusNot(Long companyId, Long candidateUserId,
+                                                            ApplicationStatus status);
 }

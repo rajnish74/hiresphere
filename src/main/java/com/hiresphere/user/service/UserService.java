@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -109,5 +110,12 @@ public class UserService {
     private User findUser(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<String> findActiveCandidateName(Long userId) {
+        return userRepository.findById(userId)
+                .filter(u -> u.getRole() == Role.CANDIDATE && u.isEnabled())
+                .map(User::getFullName);
     }
 }

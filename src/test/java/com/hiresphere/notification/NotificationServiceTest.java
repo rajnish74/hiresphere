@@ -9,6 +9,7 @@ import com.hiresphere.auth.event.PasswordResetRequestedEvent;
 import com.hiresphere.config.EmailProperties;
 import com.hiresphere.job.event.JobHiddenEvent;
 import com.hiresphere.notification.service.EmailService;
+import com.hiresphere.notification.service.NotificationPreferenceService;
 import com.hiresphere.notification.service.NotificationService;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.event.CompanyStatusChangedEvent;
@@ -31,10 +32,14 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +51,8 @@ class NotificationServiceTest {
     private UserService userService;
     @Mock
     private CompanyService companyService;
+    @Mock
+    private NotificationPreferenceService preferences;
 
     @Captor
     private ArgumentCaptor<Map<String, Object>> modelCaptor;
@@ -55,7 +62,8 @@ class NotificationServiceTest {
     @BeforeEach
     void setUp() {
         service = new NotificationService(emailService, userService, companyService,
-                new EmailProperties(true, "x", "http://localhost:3000", 3, 0));
+                new EmailProperties(true, "x", "http://localhost:3000", 3, 0), preferences);
+        lenient().when(preferences.shouldSend(anyLong(), anyString())).thenReturn(true);   // default: kisi ne opt-out nahi kiya
     }
 
     private void stubCandidate() {
@@ -117,6 +125,45 @@ class NotificationServiceTest {
         service.onStatusChanged(statusEvent(ApplicationStatus.REJECTED, false));
 
         verify(emailService, never()).send(any(), any(), any(), any());
+    }
+
+    // ---------- preferences ----------
+
+    @Test
+    void optedOutCandidateShouldNotGetTheStatusEmailButTheSkipIsLogged() {
+        stubCandidate();
+        when(preferences.shouldSend(1L, "application-status-candidate")).thenReturn(false);
+
+        service.onStatusChanged(statusEvent(ApplicationStatus.SHORTLISTED, false));
+
+        verify(emailService, never()).send(any(), any(), any(), any());
+        verify(emailService).logSkipped("cand@test.com", "You have been shortlisted for Java Dev",
+                "application-status-candidate");
+    }
+
+    @Test
+    void recruiterWhoOptedOutOfNewApplicantsShouldSkipOnlyTheirOwnMail() {
+        stubCandidate();
+        stubRecruiter();
+        when(preferences.shouldSend(2L, "application-received-recruiter")).thenReturn(false);
+
+        service.onApplicationSubmitted(
+                new ApplicationSubmittedEvent(9L, 5L, 1L, "Asha", "Java Dev", "Acme"));
+
+        verify(emailService).send(eq("cand@test.com"), any(), eq("application-submitted-candidate"), anyMap());
+        verify(emailService, never()).send(eq("rec@test.com"), any(), any(), any());
+        verify(emailService).logSkipped("rec@test.com", "New application for Java Dev",
+                "application-received-recruiter");
+    }
+
+    @Test
+    void securityAndAccountEmailsShouldNeverConsultPreferences() {
+        service.onPasswordChanged(new PasswordChangedEvent("Asha", "asha@test.com"));
+        service.onEmailVerification(new EmailVerificationRequestedEvent("Asha", "asha@test.com", "tok", 24));
+
+        verify(emailService).send(eq("asha@test.com"), any(), eq("password-changed"), anyMap());
+        verify(emailService).send(eq("asha@test.com"), any(), eq("email-verification"), anyMap());
+        verifyNoInteractions(preferences);
     }
 
     // ---------- company emails ----------
@@ -184,6 +231,8 @@ class NotificationServiceTest {
         assertThat(new EmailVerificationRequestedEvent("Asha", "a@test.com", "secret-token", 24).toString())
                 .doesNotContain("secret-token");
     }
+
+    // ---------- moderation emails ----------
 
     @Test
     void blockedUserShouldGetAnEmailWithTheReason() {

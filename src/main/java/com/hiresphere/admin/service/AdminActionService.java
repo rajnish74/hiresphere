@@ -4,7 +4,9 @@ import com.hiresphere.admin.entity.AuditAction;
 import com.hiresphere.admin.entity.AuditTargetType;
 import com.hiresphere.auth.service.RefreshTokenService;
 import com.hiresphere.job.dto.AdminJobSummary;
+import com.hiresphere.job.dto.JobReportOutcome;
 import com.hiresphere.job.service.JobModerationService;
+import com.hiresphere.job.service.JobReportService;
 import com.hiresphere.recruiter.dto.CompanyResponse;
 import com.hiresphere.recruiter.service.CompanyService;
 import com.hiresphere.user.dto.AdminUserResponse;
@@ -22,6 +24,7 @@ public class AdminActionService {
     private final RefreshTokenService refreshTokenService;
     private final JobModerationService jobModerationService;
     private final AuditService auditService;
+    private final JobReportService jobReportService;
 
     // ---------- companies ----------
 
@@ -77,5 +80,32 @@ public class AdminActionService {
         AdminJobSummary result = jobModerationService.unhide(jobId);
         auditService.record(adminId, AuditAction.JOB_UNHIDDEN, AuditTargetType.JOB, jobId, null);
         return result;
+    }
+
+    // ---------- job reports ----------
+
+    @Transactional
+    public JobReportOutcome resolveJobReport(Long adminId, Long reportId, String note, boolean hideJob) {
+        JobReportOutcome outcome = jobReportService.resolve(reportId, adminId, note);
+        String cleanNote = outcome.resolutionNote();
+
+        boolean hidden = false;
+        if (hideJob) {
+            hidden = jobModerationService.hideIfNotHidden(outcome.jobId(), cleanNote);
+            if (hidden) {
+                auditService.record(adminId, AuditAction.JOB_HIDDEN, AuditTargetType.JOB, outcome.jobId(),
+                        "Via report #" + reportId + ": " + cleanNote);
+            }
+        }
+        auditService.record(adminId, AuditAction.JOB_REPORT_RESOLVED, AuditTargetType.JOB_REPORT, reportId, cleanNote);
+        return outcome.withJobHidden(hidden);
+    }
+
+    @Transactional
+    public JobReportOutcome dismissJobReport(Long adminId, Long reportId, String note) {
+        JobReportOutcome outcome = jobReportService.dismiss(reportId, adminId, note);
+        auditService.record(adminId, AuditAction.JOB_REPORT_DISMISSED, AuditTargetType.JOB_REPORT, reportId,
+                outcome.resolutionNote());
+        return outcome;
     }
 }

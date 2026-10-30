@@ -30,37 +30,32 @@ public class NotificationService {
     private final UserService userService;
     private final CompanyService companyService;
     private final EmailProperties props;
+    private final NotificationPreferenceService preferences;
+
 
     public void onApplicationSubmitted(ApplicationSubmittedEvent e) {
-        emailOf(e.candidateUserId()).ifPresent(to -> emailService.send(to,
-                "Application received: " + e.jobTitle(),
+        sendToUser(e.candidateUserId(), "Application received: " + e.jobTitle(),
                 "application-submitted-candidate",
-                model(e.candidateName(), e.jobTitle(), e.companyName(), candidateLink(e.applicationId()))));
+                model(e.candidateName(), e.jobTitle(), e.companyName(), candidateLink(e.applicationId())));
 
-        recruiterEmail(e.companyId()).ifPresent(to -> emailService.send(to,
-                "New application for " + e.jobTitle(),
+        sendToCompanyOwner(e.companyId(), "New application for " + e.jobTitle(),
                 "application-received-recruiter",
-                model(e.candidateName(), e.jobTitle(), e.companyName(), recruiterLink(e.applicationId()))));
+                model(e.candidateName(), e.jobTitle(), e.companyName(), recruiterLink(e.applicationId())));
     }
 
     public void onStatusChanged(ApplicationStatusChangedEvent e) {
         if (e.byCandidate()) {
-            // Candidate ne khud withdraw kiya: recruiter ko batao
-            recruiterEmail(e.companyId()).ifPresent(to -> emailService.send(to,
-                    "Application withdrawn: " + e.jobTitle(),
+            sendToCompanyOwner(e.companyId(), "Application withdrawn: " + e.jobTitle(),
                     "application-withdrawn-recruiter",
-                    model(e.candidateName(), e.jobTitle(), e.companyName(), recruiterLink(e.applicationId()))));
+                    model(e.candidateName(), e.jobTitle(), e.companyName(), recruiterLink(e.applicationId())));
             return;
         }
-
-        emailOf(e.candidateUserId()).ifPresent(to -> {
-            Map<String, Object> model = model(e.candidateName(), e.jobTitle(), e.companyName(),
-                    candidateLink(e.applicationId()));
-            model.put("status", e.to().name());
-            model.put("message", messageFor(e.to()));
-            model.put("note", e.note());
-            emailService.send(to, subjectFor(e.to(), e.jobTitle()), "application-status-candidate", model);
-        });
+        Map<String, Object> model = model(e.candidateName(), e.jobTitle(), e.companyName(),
+                candidateLink(e.applicationId()));
+        model.put("status", e.to().name());
+        model.put("message", messageFor(e.to()));
+        model.put("note", e.note());
+        sendToUser(e.candidateUserId(), subjectFor(e.to(), e.jobTitle()), "application-status-candidate", model);
     }
 
 
@@ -72,27 +67,31 @@ public class NotificationService {
             model.put("message", companyMessage(e.status()));
             model.put("reason", e.reason());
             model.put("link", props.frontendUrl() + "/recruiter/company");
-            emailService.send(to, companySubject(e.status(), e.companyName()),
-                    "company-status-recruiter", model);
+            emailService.send(to, companySubject(e.status(), e.companyName()), "company-status-recruiter", model);
         });
     }
 
-    private String companySubject(CompanyStatus status, String name) {
-        return switch (status) {
-            case APPROVED -> "Your company " + name + " has been approved";
-            case REJECTED -> "Verification update for " + name;
-            case SUSPENDED -> "Your company " + name + " has been suspended";
-            default -> "Company update: " + name;
-        };
+    public void onEmailVerification(EmailVerificationRequestedEvent e) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("name", e.fullName());
+        model.put("link", props.frontendUrl() + "/verify-email?token=" + e.token());
+        model.put("validFor", e.validHours() + " hours");
+        emailService.send(e.email(), "Verify your email address", "email-verification", model);
     }
 
-    private String companyMessage(CompanyStatus status) {
-        return switch (status) {
-            case APPROVED -> "Your company is verified. You can now publish jobs and manage applications.";
-            case REJECTED -> "We could not verify your company. Please update your details and submit again.";
-            case SUSPENDED -> "Your company has been suspended. Its jobs are hidden and you cannot publish or manage applications.";
-            default -> "Your company status has been updated.";
-        };
+    public void onPasswordResetRequested(PasswordResetRequestedEvent e) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("name", e.fullName());
+        model.put("link", props.frontendUrl() + "/reset-password?token=" + e.token());
+        model.put("validFor", e.validMinutes() + " minutes");
+        emailService.send(e.email(), "Reset your HireSphere password", "password-reset", model);
+    }
+
+    public void onPasswordChanged(PasswordChangedEvent e) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("name", e.fullName());
+        model.put("link", props.frontendUrl() + "/forgot-password");
+        emailService.send(e.email(), "Your HireSphere password was changed", "password-changed", model);
     }
 
     public void onUserBlocked(UserBlockedEvent e) {
@@ -113,7 +112,23 @@ public class NotificationService {
         });
     }
 
-    // ---------- helpers ----------
+    // =====================  helpers  =====================
+
+    private void sendToUser(Long userId, String subject, String template, Map<String, Object> model) {
+        String to = userService.getEmails(Set.of(userId)).get(userId);
+        if (to == null) {
+            return;
+        }
+        if (!preferences.shouldSend(userId, template)) {
+            emailService.logSkipped(to, subject, template);
+            return;
+        }
+        emailService.send(to, subject, template, model);
+    }
+
+    private void sendToCompanyOwner(Long companyId, String subject, String template, Map<String, Object> model) {
+        companyService.getOwnerId(companyId).ifPresent(ownerId -> sendToUser(ownerId, subject, template, model));
+    }
 
     private Optional<String> emailOf(Long userId) {
         return Optional.ofNullable(userService.getEmails(Set.of(userId)).get(userId));
@@ -163,27 +178,21 @@ public class NotificationService {
         };
     }
 
-
-    public void onEmailVerification(EmailVerificationRequestedEvent e) {
-        Map<String, Object> model = new HashMap<>();
-        model.put("name", e.fullName());
-        model.put("link", props.frontendUrl() + "/verify-email?token=" + e.token());
-        model.put("validFor", e.validHours() + " hours");
-        emailService.send(e.email(), "Verify your email address", "email-verification", model);
+    private String companySubject(CompanyStatus status, String name) {
+        return switch (status) {
+            case APPROVED -> "Your company " + name + " has been approved";
+            case REJECTED -> "Verification update for " + name;
+            case SUSPENDED -> "Your company " + name + " has been suspended";
+            default -> "Company update: " + name;
+        };
     }
 
-    public void onPasswordResetRequested(PasswordResetRequestedEvent e) {
-        Map<String, Object> model = new HashMap<>();
-        model.put("name", e.fullName());
-        model.put("link", props.frontendUrl() + "/reset-password?token=" + e.token());
-        model.put("validFor", e.validMinutes() + " minutes");
-        emailService.send(e.email(), "Reset your HireSphere password", "password-reset", model);
-    }
-
-    public void onPasswordChanged(PasswordChangedEvent e) {
-        Map<String, Object> model = new HashMap<>();
-        model.put("name", e.fullName());
-        model.put("link", props.frontendUrl() + "/forgot-password");
-        emailService.send(e.email(), "Your HireSphere password was changed", "password-changed", model);
+    private String companyMessage(CompanyStatus status) {
+        return switch (status) {
+            case APPROVED -> "Your company is verified. You can now publish jobs and manage applications.";
+            case REJECTED -> "We could not verify your company. Please update your details and submit again.";
+            case SUSPENDED -> "Your company has been suspended. Its jobs are hidden and you cannot publish or manage applications.";
+            default -> "Your company status has been updated.";
+        };
     }
 }
