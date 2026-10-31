@@ -6,6 +6,7 @@ public enum NotificationCategory {
     JOB_ALERTS(true),
     PRODUCT_NEWS(true),          // future
     SECURITY(false),
+    REPORT_UPDATES(true),
     ACCOUNT(false);
 
     private final boolean optional;

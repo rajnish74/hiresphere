@@ -29,4 +29,6 @@ public interface JobReportRepository extends JpaRepository<JobReport, Long> {
             """)
     List<JobReportCount> countByJobIdsAndStatus(@Param("jobIds") Collection<Long> jobIds,
                                                 @Param("status") JobReportStatus status);
+
+    Page<JobReport> findByReporterUserId(Long reporterUserId, Pageable pageable);
 }

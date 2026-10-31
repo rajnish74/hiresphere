@@ -7,7 +7,9 @@ import com.hiresphere.auth.event.EmailVerificationRequestedEvent;
 import com.hiresphere.auth.event.PasswordChangedEvent;
 import com.hiresphere.auth.event.PasswordResetRequestedEvent;
 import com.hiresphere.config.EmailProperties;
+import com.hiresphere.job.entity.JobReportStatus;
 import com.hiresphere.job.event.JobHiddenEvent;
+import com.hiresphere.job.event.JobReportClosedEvent;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.event.CompanyStatusChangedEvent;
 import com.hiresphere.recruiter.service.CompanyService;
@@ -194,5 +196,13 @@ public class NotificationService {
             case SUSPENDED -> "Your company has been suspended. Its jobs are hidden and you cannot publish or manage applications.";
             default -> "Your company status has been updated.";
         };
+    }
+
+    public void onJobReportClosed(JobReportClosedEvent e) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("jobTitle", e.jobTitle());
+        model.put("resolved", e.outcome() == JobReportStatus.RESOLVED);
+        model.put("link", props.frontendUrl() + "/my-reports");
+        sendToUser(e.reporterUserId(), "Update on your report: " + e.jobTitle(), "job-report-update", model);
     }
 }

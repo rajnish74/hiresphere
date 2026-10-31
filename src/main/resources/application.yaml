@@ -1,13 +1,31 @@
-
 spring:
   application:
     name: hiresphere
-
+  profiles:
+    default: dev
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/hiresphere}
     username: ${DB_USER:hire_user}
     password: ${DB_PASSWORD:hire_pass}
-
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 50
+  flyway:
+    enabled: true
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -20,26 +38,27 @@ spring:
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
 
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 6MB
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
 
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    open-in-view: false
-    properties:
-      hibernate:
-        format_sql: true
-        default_batch_fetch_size: 50
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    mail:
+      enabled: false
 
-  flyway:
-    enabled: true
-
-  threads:
-    virtual:
-      enabled: true
+springdoc:
+  swagger-ui:
+    persist-authorization: true
+    tags-sorter: alpha
 
 app:
   jwt:
@@ -47,23 +66,12 @@ app:
     access-token-minutes: 15
     refresh-token-days: 7
     issuer: hiresphere
-
-  auth-tokens:
-    reset-ttl-minutes: 30
-    verification-ttl-hours: 24
-    request-limit: 3
-    request-window-minutes: 15
-
-  admin:
-    email: ${ADMIN_EMAIL:}
-    password: ${ADMIN_PASSWORD:}
-
   security:
     login:
       max-attempts: 5
       block-minutes: 15
-
   storage:
+    type: ${STORAGE_TYPE:local}
     base-dir: ${STORAGE_DIR:./uploads/resumes}
 
   mail:
@@ -72,16 +80,11 @@ app:
     frontend-url: ${FRONTEND_URL:http://localhost:3000}
     max-attempts: 3
     retry-delay-ms: 1000
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-
-server:
-  port: 8082
-
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
+  auth-tokens:
+    reset-ttl-minutes: 30
+    verification-ttl-hours: 24
+    request-limit: 3
+    request-window-minutes: 15
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}

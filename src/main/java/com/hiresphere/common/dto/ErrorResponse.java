@@ -9,5 +9,6 @@ public record ErrorResponse(
         String message,
         String path,
         Map<String, String> fieldErrors,
+        String requestId,
         Instant timestamp) {
 }

@@ -1,8 +1,10 @@
 package com.hiresphere.common.exception;
 
 import com.hiresphere.common.dto.ErrorResponse;
+import com.hiresphere.common.web.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -52,7 +54,7 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String message,
                                                 HttpServletRequest req, Map<String, String> fieldErrors) {
         ErrorResponse body = new ErrorResponse(status.value(), status.getReasonPhrase(),
-                message, req.getRequestURI(), fieldErrors, Instant.now());
+                message, req.getRequestURI(), fieldErrors, MDC.get(RequestIdFilter.MDC_KEY), Instant.now());
         return ResponseEntity.status(status).body(body);
     }
 

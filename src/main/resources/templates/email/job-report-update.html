@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, sans-serif; color: #222; max-width: 560px; margin: auto;">
+<h2 style="color: #1a56db;">Update on your report</h2>
+<p>Thank you for reporting <strong th:text="${jobTitle}">Job</strong>. Our team has reviewed it.</p>
+<p th:if="${resolved}">We found a problem and have taken action. We appreciate you helping keep HireSphere safe.</p>
+<p th:unless="${resolved}">We reviewed the posting and did not find a violation of our guidelines.
+    You can report again if you notice something new.</p>
+<p><a th:href="${link}">See your reports</a></p>
+<p style="color: #888; font-size: 12px;">You can turn off these emails in your notification settings.</p>
+</body>
+</html>

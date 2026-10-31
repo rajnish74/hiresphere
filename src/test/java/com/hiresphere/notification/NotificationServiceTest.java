@@ -7,7 +7,9 @@ import com.hiresphere.auth.event.EmailVerificationRequestedEvent;
 import com.hiresphere.auth.event.PasswordChangedEvent;
 import com.hiresphere.auth.event.PasswordResetRequestedEvent;
 import com.hiresphere.config.EmailProperties;
+import com.hiresphere.job.entity.JobReportStatus;
 import com.hiresphere.job.event.JobHiddenEvent;
+import com.hiresphere.job.event.JobReportClosedEvent;
 import com.hiresphere.notification.service.EmailService;
 import com.hiresphere.notification.service.NotificationPreferenceService;
 import com.hiresphere.notification.service.NotificationService;
@@ -256,5 +258,29 @@ class NotificationServiceTest {
                 eq("job-hidden-recruiter"), modelCaptor.capture());
         assertThat(modelCaptor.getValue().get("reason")).isEqualTo("Misleading salary");
         assertThat(modelCaptor.getValue().get("link").toString()).endsWith("/recruiter/jobs/20");
+    }
+
+    @Test
+    void reportOutcomeEmailShouldGoToTheReporterAndNeverContainAnAdminNote() {
+        stubCandidate();
+
+        service.onJobReportClosed(new JobReportClosedEvent(1L, 20L, "Java Dev", JobReportStatus.RESOLVED));
+
+        verify(emailService).send(eq("cand@test.com"), eq("Update on your report: Java Dev"),
+                eq("job-report-update"), modelCaptor.capture());
+        assertThat(modelCaptor.getValue().get("resolved")).isEqualTo(true);
+        assertThat(modelCaptor.getValue().get("link").toString()).endsWith("/my-reports");
+        assertThat(modelCaptor.getValue()).doesNotContainKey("note");
+    }
+
+    @Test
+    void reporterWhoOptedOutOfReportUpdatesShouldNotGetTheEmail() {
+        stubCandidate();
+        when(preferences.shouldSend(1L, "job-report-update")).thenReturn(false);
+
+        service.onJobReportClosed(new JobReportClosedEvent(1L, 20L, "Java Dev", JobReportStatus.DISMISSED));
+
+        verify(emailService, never()).send(any(), any(), any(), any());
+        verify(emailService).logSkipped("cand@test.com", "Update on your report: Java Dev", "job-report-update");
     }
 }

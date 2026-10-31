@@ -79,4 +79,11 @@ public class CandidateProfileService {
     public Optional<CandidateProfileView> findView(Long userId, String fullName) {
         return profileRepository.findByUserId(userId).map(p -> CandidateProfileView.from(p, fullName));
     }
+
+    @Transactional(readOnly = true)
+    public Optional<PublicCandidateView> findPublicView(Long userId, String fullName) {
+        return profileRepository.findByUserId(userId)
+                .filter(p -> p.getVisibility() == ProfileVisibility.PUBLIC)
+                .map(p -> PublicCandidateView.from(p, fullName));
+    }
 }

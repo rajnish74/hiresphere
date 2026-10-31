@@ -7,19 +7,16 @@ import com.hiresphere.common.exception.DuplicateResourceException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.util.PageUtil;
 import com.hiresphere.common.util.TextUtil;
-import com.hiresphere.job.dto.AdminJobReportResponse;
-import com.hiresphere.job.dto.JobRef;
-import com.hiresphere.job.dto.JobReportCount;
-import com.hiresphere.job.dto.JobReportOutcome;
-import com.hiresphere.job.dto.JobReportResponse;
-import com.hiresphere.job.dto.ReportJobRequest;
+import com.hiresphere.job.dto.*;
 import com.hiresphere.job.entity.JobReport;
 import com.hiresphere.job.entity.JobReportReason;
 import com.hiresphere.job.entity.JobReportStatus;
+import com.hiresphere.job.event.JobReportClosedEvent;
 import com.hiresphere.job.repository.JobReportRepository;
 import com.hiresphere.user.dto.UserResponse;
 import com.hiresphere.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -43,6 +40,7 @@ public class JobReportService {
     private final JobReportRepository repository;
     private final JobQueryService jobQueryService;
     private final UserService userService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ---------- candidate side ----------
 
@@ -101,6 +99,7 @@ public class JobReportService {
     public JobReportOutcome resolve(Long reportId, Long adminId, String note) {
         JobReport report = findReport(reportId);
         report.resolve(adminId, note.trim());
+        publishClosed(report);
         return JobReportOutcome.of(report);
     }
 
@@ -108,7 +107,20 @@ public class JobReportService {
     public JobReportOutcome dismiss(Long reportId, Long adminId, String note) {
         JobReport report = findReport(reportId);
         report.dismiss(adminId, note.trim());
+        publishClosed(report);
         return JobReportOutcome.of(report);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<MyJobReportResponse> listMine(Long userId, int page, int size) {
+        return PageResponse.of(
+                repository.findByReporterUserId(userId, PageUtil.newestFirst(page, size)),
+                MyJobReportResponse::from);
+    }
+
+    private void publishClosed(JobReport r) {
+        eventPublisher.publishEvent(
+                new JobReportClosedEvent(r.getReporterUserId(), r.getJobId(), r.getJobTitle(), r.getStatus()));
     }
 
     private JobReport findReport(Long id) {

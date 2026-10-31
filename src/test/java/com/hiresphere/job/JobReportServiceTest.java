@@ -5,15 +5,11 @@ import com.hiresphere.common.exception.AppException;
 import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.DuplicateResourceException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
-import com.hiresphere.job.dto.AdminJobReportResponse;
-import com.hiresphere.job.dto.JobRef;
-import com.hiresphere.job.dto.JobReportCount;
-import com.hiresphere.job.dto.JobReportOutcome;
-import com.hiresphere.job.dto.JobReportResponse;
-import com.hiresphere.job.dto.ReportJobRequest;
+import com.hiresphere.job.dto.*;
 import com.hiresphere.job.entity.JobReport;
 import com.hiresphere.job.entity.JobReportReason;
 import com.hiresphere.job.entity.JobReportStatus;
+import com.hiresphere.job.event.JobReportClosedEvent;
 import com.hiresphere.job.repository.JobReportRepository;
 import com.hiresphere.job.service.JobQueryService;
 import com.hiresphere.job.service.JobReportService;
@@ -26,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -57,9 +54,12 @@ class JobReportServiceTest {
 
     private JobReportService service;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @BeforeEach
     void setUp() {
-        service = new JobReportService(repository, jobQueryService, userService);
+        service = new JobReportService(repository, jobQueryService, userService, eventPublisher);
     }
 
     private UserResponse reporter(boolean verified) {
@@ -192,5 +192,52 @@ class JobReportServiceTest {
         assertThat(page.content()).hasSize(1);
         assertThat(page.content().get(0).reporterEmail()).isEqualTo("asha@test.com");
         assertThat(page.content().get(0).openReportsForJob()).isEqualTo(3L);
+    }
+
+    @Test
+    void resolveShouldAnnounceTheOutcomeToTheReporterWithoutTheAdminNote() {
+        JobReport report = JobReport.create(20L, 1L, JobReportReason.SCAM, null, "Java Dev");
+        when(repository.findById(7L)).thenReturn(Optional.of(report));
+
+        service.resolve(7L, 99L, "Internal: recruiter has 3 other fake posts");
+
+        verify(eventPublisher).publishEvent(
+                new JobReportClosedEvent(1L, 20L, "Java Dev", JobReportStatus.RESOLVED));
+    }
+
+    @Test
+    void dismissShouldAnnounceDismissed() {
+        JobReport report = JobReport.create(20L, 1L, JobReportReason.SCAM, null, "Java Dev");
+        when(repository.findById(7L)).thenReturn(Optional.of(report));
+
+        service.dismiss(7L, 99L, "Genuine job");
+
+        verify(eventPublisher).publishEvent(
+                new JobReportClosedEvent(1L, 20L, "Java Dev", JobReportStatus.DISMISSED));
+    }
+
+    @Test
+    void anAlreadyClosedReportShouldNotAnnounceAnything() {
+        JobReport report = JobReport.create(20L, 1L, JobReportReason.SCAM, null, "Java Dev");
+        report.resolve(99L, "x");
+        when(repository.findById(7L)).thenReturn(Optional.of(report));
+
+        assertThatThrownBy(() -> service.dismiss(7L, 99L, "y")).isInstanceOf(AppException.class);
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void listMineShouldReturnOnlyTheCallersReportsWithoutAdminNotes() {
+        JobReport report = JobReport.create(20L, 1L, JobReportReason.SCAM, "details", "Java Dev");
+        report.resolve(99L, "secret admin note");
+        when(repository.findByReporterUserId(eq(1L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(report)));
+
+        PageResponse<MyJobReportResponse> page = service.listMine(1L, 0, 20);
+
+        assertThat(page.content()).hasSize(1);
+        assertThat(page.content().get(0).status()).isEqualTo(JobReportStatus.RESOLVED);
+        assertThat(page.content().get(0).toString()).doesNotContain("secret admin note");
     }
 }

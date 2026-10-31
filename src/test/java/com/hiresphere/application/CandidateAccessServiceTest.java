@@ -3,7 +3,9 @@ package com.hiresphere.application;
 import com.hiresphere.application.entity.ApplicationStatus;
 import com.hiresphere.application.repository.JobApplicationRepository;
 import com.hiresphere.application.service.CandidateAccessService;
+import com.hiresphere.application.service.ProfileViewService;
 import com.hiresphere.candidate.dto.CandidateProfileView;
+import com.hiresphere.candidate.dto.PublicCandidateView;
 import com.hiresphere.candidate.entity.ProfileVisibility;
 import com.hiresphere.candidate.service.CandidateProfileService;
 import com.hiresphere.common.exception.AppException;
@@ -43,13 +45,15 @@ class CandidateAccessServiceTest {
     private CandidateProfileService candidateProfileService;
     @Mock
     private JobApplicationRepository applicationRepository;
+    @Mock
+    private ProfileViewService profileViewService;
 
     private CandidateAccessService service;
 
     @BeforeEach
     void setUp() {
         service = new CandidateAccessService(companyService, userService, candidateProfileService,
-                applicationRepository);
+                applicationRepository, profileViewService);
     }
 
     private void approvedAndVerifiedRecruiter() {
@@ -70,6 +74,12 @@ class CandidateAccessServiceTest {
                 List.of(), List.of(), List.of(), List.of());
     }
 
+    private PublicCandidateView publicView() {
+        return new PublicCandidateView("Asha", "Java Dev", null, "Patna", null, null, true, List.of(), List.of());
+    }
+
+    // ---------- recruiter view ----------
+
     @Test
     void recruiterOfAnUnapprovedCompanyShouldBeForbidden() {
         when(companyService.getOwnCompanySummary(2L))
@@ -79,7 +89,7 @@ class CandidateAccessServiceTest {
                 .isInstanceOfSatisfying(AppException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
 
-        verifyNoInteractions(candidateProfileService);
+        verifyNoInteractions(candidateProfileService, profileViewService);
     }
 
     @Test
@@ -92,35 +102,40 @@ class CandidateAccessServiceTest {
                 .isInstanceOfSatisfying(AppException.class,
                         e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN));
 
-        verifyNoInteractions(candidateProfileService);
+        verifyNoInteractions(candidateProfileService, profileViewService);
     }
 
     @Test
-    void privateProfileWithoutAnApplicationShouldLookLikeNotFound() {
+    void privateProfileWithoutAnApplicationShouldLookLikeNotFoundAndBeNeitherReadNorLogged() {
         approvedAndVerifiedRecruiter();
         candidateExistsWith(ProfileVisibility.PRIVATE, false);
 
         assertThatThrownBy(() -> service.viewProfile(2L, 9L)).isInstanceOf(ResourceNotFoundException.class);
 
         verify(candidateProfileService, never()).findView(any(), any());
+        verifyNoInteractions(profileViewService);
     }
 
     @Test
-    void privateProfileShouldBeVisibleToACompanyTheCandidateAppliedTo() {
+    void privateProfileShouldBeVisibleToACompanyTheCandidateAppliedToAndTheViewIsLogged() {
         approvedAndVerifiedRecruiter();
         candidateExistsWith(ProfileVisibility.PRIVATE, true);
         when(candidateProfileService.findView(9L, "Asha")).thenReturn(Optional.of(view()));
 
         assertThat(service.viewProfile(2L, 9L).fullName()).isEqualTo("Asha");
+
+        verify(profileViewService).record(5L, 9L);
     }
 
     @Test
-    void recruitersOnlyProfileShouldBeVisibleWithoutAnApplication() {
+    void recruitersOnlyProfileShouldBeVisibleWithoutAnApplicationAndLogged() {
         approvedAndVerifiedRecruiter();
         candidateExistsWith(ProfileVisibility.RECRUITERS_ONLY, false);
         when(candidateProfileService.findView(9L, "Asha")).thenReturn(Optional.of(view()));
 
         assertThat(service.viewProfile(2L, 9L).userId()).isEqualTo(9L);
+
+        verify(profileViewService).record(5L, 9L);
     }
 
     @Test
@@ -130,6 +145,50 @@ class CandidateAccessServiceTest {
 
         assertThatThrownBy(() -> service.viewProfile(2L, 9L)).isInstanceOf(ResourceNotFoundException.class);
 
-        verifyNoInteractions(candidateProfileService, applicationRepository);
+        verifyNoInteractions(candidateProfileService, applicationRepository, profileViewService);
+    }
+
+    // ---------- public page ----------
+
+    @Test
+    void publicProfileShouldBeVisibleWithoutLoginAndNotLoggedAsAView() {
+        when(userService.findActiveCandidateName(9L)).thenReturn(Optional.of("Asha"));
+        when(candidateProfileService.findPublicView(9L, "Asha")).thenReturn(Optional.of(publicView()));
+
+        assertThat(service.viewPublic(9L, "1.1.1.1").fullName()).isEqualTo("Asha");
+
+        verifyNoInteractions(profileViewService);   // anonymous view kisi company ka nahi
+    }
+
+    @Test
+    void aProfileThatIsNotPublicShouldLookLikeNotFound() {
+        when(userService.findActiveCandidateName(9L)).thenReturn(Optional.of("Asha"));
+        when(candidateProfileService.findPublicView(9L, "Asha")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.viewPublic(9L, "1.1.1.1")).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void aBlockedOrUnknownCandidateShouldBeNotFoundOnThePublicPageToo() {
+        when(userService.findActiveCandidateName(9L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.viewPublic(9L, "1.1.1.1")).isInstanceOf(ResourceNotFoundException.class);
+
+        verifyNoInteractions(candidateProfileService);
+    }
+
+    @Test
+    void thePublicPageShouldBeRateLimitedPerIp() {
+        when(userService.findActiveCandidateName(9L)).thenReturn(Optional.of("Asha"));
+        when(candidateProfileService.findPublicView(9L, "Asha")).thenReturn(Optional.of(publicView()));
+
+        for (int i = 0; i < 30; i++) {
+            service.viewPublic(9L, "1.1.1.1");
+        }
+
+        assertThatThrownBy(() -> service.viewPublic(9L, "1.1.1.1"))
+                .isInstanceOfSatisfying(AppException.class,
+                        e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
+        assertThat(service.viewPublic(9L, "2.2.2.2").fullName()).isEqualTo("Asha");   // doosra IP theek
     }
 }

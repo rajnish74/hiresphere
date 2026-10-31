@@ -16,7 +16,9 @@ public final class NotificationTemplates {
             Map.entry("account-blocked", NotificationCategory.ACCOUNT),
             Map.entry("email-verification", NotificationCategory.SECURITY),
             Map.entry("password-reset", NotificationCategory.SECURITY),
+            Map.entry("job-report-update", NotificationCategory.REPORT_UPDATES),
             Map.entry("password-changed", NotificationCategory.SECURITY));
+
 
     private NotificationTemplates() {
     }

@@ -40,4 +40,10 @@ class NotificationTemplatesTest {
         assertThat(NotificationTemplates.categoryOf("application-received-recruiter"))
                 .isEqualTo(NotificationCategory.NEW_APPLICANTS);
     }
+
+    @Test
+    void reportUpdatesShouldBeAnOptionalCategory() {
+        assertThat(NotificationTemplates.categoryOf("job-report-update")).isEqualTo(NotificationCategory.REPORT_UPDATES);
+        assertThat(NotificationCategory.REPORT_UPDATES.isOptional()).isTrue();
+    }
 }
