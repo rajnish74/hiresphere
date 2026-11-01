@@ -4,12 +4,10 @@ import com.hiresphere.common.dto.PageResponse;
 import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.util.PageUtil;
-import com.hiresphere.job.dto.JobSearchCriteria;
-import com.hiresphere.job.dto.JobSort;
-import com.hiresphere.job.dto.PublicJobDetail;
-import com.hiresphere.job.dto.PublicJobSummary;
+import com.hiresphere.job.dto.*;
 import com.hiresphere.job.entity.Job;
 import com.hiresphere.job.entity.JobType;
+import com.hiresphere.job.entity.WorkMode;
 import com.hiresphere.job.repository.JobFacetQueries;
 import com.hiresphere.job.repository.JobRepository;
 import com.hiresphere.job.repository.JobSpecifications;
@@ -108,5 +106,41 @@ public class PublicJobService {
         Map<Long, String> names = companyService.getNames(companyIds);   // ek hi query
         return jobs.stream().collect(Collectors.toMap(Job::getId,
                 j -> PublicJobSummary.from(j, names.get(j.getCompanyId()))));
+    }
+
+    @Transactional(readOnly = true)
+    public JobFacets facets(JobSearchCriteria criteria) {
+        validate(criteria);
+        Instant now = Instant.now();
+        Map<JobType, Long> types = facetQueries.countBy(
+                JobSpecifications.search(criteria.withoutJobTypes(), now), "jobType", JobType.class);
+        Map<WorkMode, Long> modes = facetQueries.countBy(
+                JobSpecifications.search(criteria.withoutWorkModes(), now), "workMode", WorkMode.class);
+        long total = jobRepository.count(JobSpecifications.search(criteria, now));
+        return new JobFacets(total, types, modes);
+    }
+
+    @Transactional(readOnly = true)
+    public long countVisibleJobs() {
+        return jobRepository.count(JobSpecifications.visibleToPublic(Instant.now()));
+    }
+
+    @Transactional(readOnly = true)
+    public List<TopCompany> topCompanies(int limit) {
+        List<CompanyJobCount> rows = facetQueries.topCompanies(Instant.now(), clamp(limit));
+        Map<Long, String> names = companyService.getNames(
+                rows.stream().map(CompanyJobCount::companyId).collect(Collectors.toSet()));
+        return rows.stream()
+                .map(r -> new TopCompany(r.companyId(), names.getOrDefault(r.companyId(), "Company"), r.total()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SkillCount> popularSkills(int limit) {
+        return facetQueries.popularSkills(Instant.now(), clamp(limit));
+    }
+
+    private int clamp(int limit) {
+        return Math.min(Math.max(limit, 1), 20);
     }
 }

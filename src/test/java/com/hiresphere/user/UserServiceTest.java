@@ -4,6 +4,8 @@ import com.hiresphere.common.exception.AppException;
 import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.user.dto.AdminUserResponse;
+import com.hiresphere.user.dto.UpdateMeRequest;
+import com.hiresphere.user.dto.UserResponse;
 import com.hiresphere.user.entity.Role;
 import com.hiresphere.user.entity.User;
 import com.hiresphere.user.event.SessionsInvalidatedEvent;
@@ -144,5 +146,28 @@ class UserServiceTest {
         assertThat(service.findActiveCandidateName(6L)).isEmpty();
         assertThat(service.findActiveCandidateName(7L)).isEmpty();
         assertThat(service.findActiveCandidateName(8L)).isEmpty();
+    }
+
+    @Test
+    void updateMeShouldTrimTheNameAndClearABlankPhone() {
+        User u = user(5L, Role.CANDIDATE, true);
+        u.setPhone("+911234567890");
+        when(userRepository.findById(5L)).thenReturn(Optional.of(u));
+
+        UserResponse response = service.updateMe(5L, new UpdateMeRequest("  Asha Verma ", "  "));
+
+        assertThat(u.getFullName()).isEqualTo("Asha Verma");
+        assertThat(u.getPhone()).isNull();
+        assertThat(response.phone()).isNull();
+    }
+
+    @Test
+    void updateMeShouldStoreAPhone() {
+        User u = user(5L, Role.CANDIDATE, true);
+        when(userRepository.findById(5L)).thenReturn(Optional.of(u));
+
+        UserResponse response = service.updateMe(5L, new UpdateMeRequest("Asha", "+919876543210"));
+
+        assertThat(response.phone()).isEqualTo("+919876543210");
     }
 }

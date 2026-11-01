@@ -29,13 +29,24 @@ public class CandidateApplicationController {
         return ApiResponse.ok("Application submitted", service.apply(userId(jwt), jobId, request));
     }
 
+    @GetMapping("/candidates/me/apply-prefill")
+    public ApiResponse<ApplyPrefill> prefill(@AuthenticationPrincipal Jwt jwt) {
+        return ApiResponse.ok(service.prefill(userId(jwt)));
+    }
+
     @GetMapping("/candidates/me/applications")
     public ApiResponse<PageResponse<ApplicationSummary>> list(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(service.listMine(userId(jwt), status, page, size));
+        return ApiResponse.ok(service.listMine(userId(jwt), status, q, page, size));
+    }
+
+    @GetMapping("/candidates/me/applications/counts")
+    public ApiResponse<MyApplicationCounts> counts(@AuthenticationPrincipal Jwt jwt) {
+        return ApiResponse.ok(service.myCounts(userId(jwt)));
     }
 
     @GetMapping("/candidates/me/applications/{id}")

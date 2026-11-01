@@ -122,4 +122,8 @@ public class Job extends BaseEntity {
         hidden = false;
         moderationReason = null;
     }
+
+    @Setter(AccessLevel.NONE)
+    @Column(name = "applications_count", nullable = false, insertable = false, updatable = false)
+    private int applicationsCount;
 }

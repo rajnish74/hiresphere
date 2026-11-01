@@ -53,7 +53,12 @@ public final class JobSpecifications {
     }
 
     public static Specification<Job> hasId(Long id) {
+
         return (root, query, cb) -> cb.equal(root.get("id"), id);
+    }
+
+    public static Specification<Job> hasCompanyId(Long companyId) {
+        return (root, query, cb) -> cb.equal(root.get("companyId"), companyId);
     }
 
     public static Specification<Job> postedWithin(int days, Instant now) {
@@ -89,6 +94,9 @@ public final class JobSpecifications {
         }
         if (c.postedWithinDays() != null) {
             spec = spec.and(postedWithin(c.postedWithinDays(), now));
+        }
+        if (c.companyId() != null) {
+            spec = spec.and(hasCompanyId(c.companyId()));
         }
         return spec;
     }

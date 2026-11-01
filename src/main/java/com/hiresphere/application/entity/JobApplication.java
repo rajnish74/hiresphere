@@ -10,6 +10,8 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLRestriction;
 import org.springframework.http.HttpStatus;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,6 +57,17 @@ public class JobApplication extends BaseEntity {
 
     @Column(nullable = false, length = 255)
     private String resumeOriginalName;
+
+    @Column(length = 15)
+    private String phone;
+
+    @Column(length = 100)
+    private String currentLocation;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal expectedSalary;
+
+    private LocalDate availableFrom;
 
     @Setter(AccessLevel.NONE)
     @OneToMany(mappedBy = "application", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -67,7 +68,7 @@ public class CandidateProfileService {
     @Transactional
     public ApplicantSnapshot getSnapshot(Long userId) {
         CandidateProfile p = getOrCreate(userId);
-        return new ApplicantSnapshot(p.getHeadline(), p.getResumeStorageKey(), p.getResumeOriginalName());
+        return new ApplicantSnapshot(p.getHeadline(), p.getResumeStorageKey(), p.getResumeOriginalName(), p.getLocation());
     }
 
     @Transactional(readOnly = true)
@@ -85,5 +86,12 @@ public class CandidateProfileService {
         return profileRepository.findByUserId(userId)
                 .filter(p -> p.getVisibility() == ProfileVisibility.PUBLIC)
                 .map(p -> PublicCandidateView.from(p, fullName));
+    }
+
+    @Transactional(readOnly = true)
+    public Set<String> findSkillKeys(Long userId) {
+        return profileRepository.findByUserId(userId)
+                .map(p -> p.getSkills().stream().map(Skill::getNormalizedName).collect(Collectors.toSet()))
+                .orElse(Set.of());
     }
 }

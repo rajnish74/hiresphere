@@ -6,7 +6,9 @@ import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.util.CountUtil;
 import com.hiresphere.common.util.PageUtil;
+import com.hiresphere.common.util.TextUtil;
 import com.hiresphere.user.dto.AdminUserResponse;
+import com.hiresphere.user.dto.UpdateMeRequest;
 import com.hiresphere.user.dto.UserResponse;
 import com.hiresphere.user.dto.UserStats;
 import com.hiresphere.user.entity.Role;
@@ -117,5 +119,18 @@ public class UserService {
         return userRepository.findById(userId)
                 .filter(u -> u.getRole() == Role.CANDIDATE && u.isEnabled())
                 .map(User::getFullName);
+    }
+
+    @Transactional(readOnly = true)
+    public long countActiveCandidates() {
+        return userRepository.countByRoleAndEnabledTrue(Role.CANDIDATE);
+    }
+
+    @Transactional
+    public UserResponse updateMe(Long userId, UpdateMeRequest req) {
+        User user = findUser(userId);
+        user.setFullName(req.fullName().trim());
+        user.setPhone(TextUtil.blankToNull(req.phone()));
+        return UserResponse.from(user);
     }
 }

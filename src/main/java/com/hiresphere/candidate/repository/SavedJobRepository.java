@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface SavedJobRepository extends JpaRepository<SavedJob, Long> {
@@ -33,4 +34,7 @@ public interface SavedJobRepository extends JpaRepository<SavedJob, Long> {
     @Modifying
     @Query("delete from SavedJob s where s.candidateUserId = :userId and s.jobId = :jobId")
     int deleteOne(@Param("userId") Long userId, @Param("jobId") Long jobId);
+
+    @Query("select s.jobId from SavedJob s where s.candidateUserId = :userId and s.jobId in :jobIds")
+    List<Long> findSavedAmong(@Param("userId") Long userId, @Param("jobIds") Collection<Long> jobIds);
 }

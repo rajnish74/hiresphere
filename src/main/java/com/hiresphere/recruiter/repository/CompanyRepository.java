@@ -18,4 +18,6 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     @Query("select c.verificationStatus, count(c) from Company c group by c.verificationStatus")
     List<Object[]> countGroupedByStatus();
+
+    Optional<Company> findByIdAndVerificationStatus(Long id, CompanyStatus status);
 }

@@ -15,11 +15,27 @@ public record JobSearchCriteria(
         BigDecimal minSalary,
         List<String> skills,
         JobSort sort,
-        Integer postedWithinDays) {
+        Integer postedWithinDays,
+        Long companyId) {
 
-    public JobSearchCriteria(String keyword, String location, List<JobType> jobTypes,
-                             List<WorkMode> workModes, Integer experience, BigDecimal minSalary,
-                             List<String> skills, JobSort sort) {
-        this(keyword, location, jobTypes, workModes, experience, minSalary, skills, sort, null);
+    public JobSearchCriteria(String keyword, String location, List<JobType> jobTypes, List<WorkMode> workModes,
+                             Integer experience, BigDecimal minSalary, List<String> skills, JobSort sort,
+                             Integer postedWithinDays) {
+        this(keyword, location, jobTypes, workModes, experience, minSalary, skills, sort, postedWithinDays, null);
+    }
+
+    public JobSearchCriteria(String keyword, String location, List<JobType> jobTypes, List<WorkMode> workModes,
+                             Integer experience, BigDecimal minSalary, List<String> skills, JobSort sort) {
+        this(keyword, location, jobTypes, workModes, experience, minSalary, skills, sort, null, null);
+    }
+
+    public JobSearchCriteria withoutJobTypes() {
+        return new JobSearchCriteria(keyword, location, null, workModes, experience, minSalary, skills, sort,
+                postedWithinDays, companyId);
+    }
+
+    public JobSearchCriteria withoutWorkModes() {
+        return new JobSearchCriteria(keyword, location, jobTypes, null, experience, minSalary, skills, sort,
+                postedWithinDays, companyId);
     }
 }

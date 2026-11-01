@@ -7,10 +7,7 @@ import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.util.CountUtil;
 import com.hiresphere.common.util.PageUtil;
 import com.hiresphere.common.util.TextUtil;
-import com.hiresphere.recruiter.dto.AdminCompanyResponse;
-import com.hiresphere.recruiter.dto.CompanyRequest;
-import com.hiresphere.recruiter.dto.CompanyResponse;
-import com.hiresphere.recruiter.dto.CompanySummary;
+import com.hiresphere.recruiter.dto.*;
 import com.hiresphere.recruiter.entity.Company;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.event.CompanyStatusChangedEvent;
@@ -154,6 +151,14 @@ public class CompanyService {
         c.setIndustry(TextUtil.blankToNull(r.industry()));
         c.setDescription(TextUtil.blankToNull(r.description()));
         c.setLocation(TextUtil.blankToNull(r.location()));
+    }
+
+
+    @Transactional(readOnly = true)
+    public Optional<PublicCompanyInfo> findApproved(Long id) {
+        return companyRepository.findByIdAndVerificationStatus(id, CompanyStatus.APPROVED)
+                .map(c -> new PublicCompanyInfo(c.getId(), c.getName(), c.getWebsite(), c.getIndustry(),
+                        c.getDescription(), c.getLocation()));
     }
 
 

@@ -2,13 +2,14 @@ package com.hiresphere.job;
 
 import com.hiresphere.common.exception.BadRequestException;
 import com.hiresphere.common.exception.ResourceNotFoundException;
-import com.hiresphere.job.dto.JobSearchCriteria;
-import com.hiresphere.job.dto.JobSort;
-import com.hiresphere.job.dto.PublicJobSummary;
+import com.hiresphere.job.dto.*;
 import com.hiresphere.job.entity.Job;
 import com.hiresphere.job.entity.JobType;
 import com.hiresphere.job.entity.WorkMode;
+import com.hiresphere.job.repository.JobFacetQueries;
 import com.hiresphere.job.repository.JobRepository;
+import com.hiresphere.job.service.JobQueryService;
+import com.hiresphere.job.service.PublicCompanyService;
 import com.hiresphere.job.service.PublicJobService;
 import com.hiresphere.recruiter.entity.Company;
 import com.hiresphere.recruiter.repository.CompanyRepository;
@@ -28,6 +29,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +41,9 @@ class PublicJobSearchTest {
 
     @Autowired
     private PublicJobService service;
+
+    @Autowired
+    private JobQueryService jobQueryService;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -47,6 +52,11 @@ class PublicJobSearchTest {
     private JobRepository jobRepository;
     @Autowired
     private SkillRepository skillRepository;
+
+    @Autowired
+    private JobFacetQueries facetQueries;
+    @Autowired
+    private PublicCompanyService publicCompanyService;
 
     private String tag;
     private User owner;
@@ -264,5 +274,135 @@ class PublicJobSearchTest {
         j.unhideByAdmin();
         jobRepository.saveAndFlush(j);
         assertThat(searchByTag()).hasSize(1);
+    }
+
+    @Test
+    void facetsShouldIgnoreOnlyTheirOwnFilter() {
+        Company c = company(true);
+        job(c, "A", true);
+        Job b = job(c, "B", true);
+        b.setJobType(JobType.INTERNSHIP);
+        Job d = job(c, "C", true);
+        d.setWorkMode(WorkMode.ONSITE);
+        jobRepository.flush();
+
+        JobFacets facets = service.facets(new JobSearchCriteria(tag, null, List.of(JobType.FULL_TIME),
+                List.of(WorkMode.REMOTE), null, null, null, null));
+
+        assertThat(facets.total()).isEqualTo(1);
+        assertThat(facets.jobType()).containsEntry(JobType.FULL_TIME, 1L)
+                .containsEntry(JobType.INTERNSHIP, 1L).containsEntry(JobType.CONTRACT, 0L);
+        assertThat(facets.workMode()).containsEntry(WorkMode.REMOTE, 1L)
+                .containsEntry(WorkMode.ONSITE, 1L).containsEntry(WorkMode.HYBRID, 0L);
+    }
+
+    @Test
+    void companyFilterShouldReturnOnlyThatCompanysJobs() {
+        Company mine = company(true);
+        Company other = anotherCompany(true);
+        job(mine, "Mine", true);
+        job(other, "Theirs", true);
+
+        List<PublicJobSummary> result = service.search(new JobSearchCriteria(tag, null, null, null, null, null,
+                null, null, null, mine.getId()), 0, 50).content();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).title()).startsWith("Mine");
+    }
+
+    @Test
+    void searchResultsShouldCarrySkillNamesForTheCards() {
+        Company c = company(true);
+        Skill s = skillRepository.save(new Skill("Zk" + tag, "zk" + tag));
+        Job j = job(c, "WithSkill", true);
+        j.getSkills().add(s);
+        jobRepository.flush();
+
+        List<PublicJobSummary> result = searchByTag();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).skills()).containsExactly("Zk" + tag);
+    }
+
+    @Test
+    void topCompaniesShouldListOnlyApprovedCompaniesWithOpenJobs() {
+        Company approved = company(true);
+        job(approved, "One", true);
+        job(approved, "Two", true);
+        job(approved, "Draft", false);
+        Company pending = anotherCompany(false);
+        job(pending, "Hidden", true);
+
+        List<CompanyJobCount> top = facetQueries.topCompanies(Instant.now(), 1000);
+
+        assertThat(top).filteredOn(r -> r.companyId().equals(approved.getId()))
+                .singleElement().satisfies(r -> assertThat(r.total()).isEqualTo(2L));
+        assertThat(top).noneMatch(r -> r.companyId().equals(pending.getId()));
+    }
+
+    @Test
+    void popularSkillsShouldCountEachJobOnce() {
+        Company c = company(true);
+        Skill shared = skillRepository.save(new Skill("Zp" + tag, "zp" + tag));
+        Job a = job(c, "A", true);
+        Job b = job(c, "B", true);
+        a.getSkills().add(shared);
+        b.getSkills().add(shared);
+        jobRepository.flush();
+
+        List<SkillCount> skills = facetQueries.popularSkills(Instant.now(), 1000);
+
+        assertThat(skills).filteredOn(s -> s.name().equals("Zp" + tag))
+                .singleElement().satisfies(s -> assertThat(s.total()).isEqualTo(2L));
+    }
+
+    @Test
+    void publicCompanyPageShouldCountOnlyVisibleJobsAndHideUnapprovedCompanies() {
+        Company approved = company(true);
+        job(approved, "One", true);
+        job(approved, "Two", true);
+        job(approved, "Draft", false);
+
+        PublicCompanyProfile profile = publicCompanyService.get(approved.getId());
+
+        assertThat(profile.openJobs()).isEqualTo(2L);
+        assertThat(profile.name()).isEqualTo(approved.getName());
+
+        Company pending = anotherCompany(false);
+        assertThatThrownBy(() -> publicCompanyService.get(pending.getId()))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    private Company anotherCompany(boolean approved) {
+        User other = new User();
+        other.setFullName("Other " + tag);
+        other.setEmail(tag + "-" + UUID.randomUUID().toString().substring(0, 6) + "@test.com");
+        other.setPasswordHash("x");
+        other.setRole(Role.RECRUITER);
+        userRepository.saveAndFlush(other);
+
+        Company c = new Company();
+        c.setOwnerId(other.getId());
+        c.setName("Other Company " + tag);
+        if (approved) {
+            c.approve(other.getId());
+        }
+        return companyRepository.saveAndFlush(c);
+    }
+
+    @Test
+    void publicJobSkillKeysShouldCoverOnlyVisibleJobs() {
+        Company c = company(true);
+        Skill s = skillRepository.save(new Skill("Zm" + tag, "zm" + tag));
+        Job visible = job(c, "Visible", true);
+        visible.getSkills().add(s);
+        Job draft = job(c, "Draft", false);
+        draft.getSkills().add(s);
+        jobRepository.flush();
+
+        Map<Long, Set<String>> keys = jobQueryService.publicJobSkillKeys(List.of(visible.getId(), draft.getId()));
+
+        assertThat(keys).containsOnlyKeys(visible.getId());
+        assertThat(keys.get(visible.getId())).containsExactly("zm" + tag);
     }
 }

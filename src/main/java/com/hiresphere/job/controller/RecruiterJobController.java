@@ -15,6 +15,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Recruiter jobs", description = "Create, publish and manage your company's jobs")
 @RestController
 @RequestMapping("/api/v1/recruiter/jobs")
 @PreAuthorize("hasRole('RECRUITER')")

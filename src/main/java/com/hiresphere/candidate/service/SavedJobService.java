@@ -17,10 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -68,5 +65,15 @@ public class SavedJobService {
     @Transactional(readOnly = true)
     public List<Long> savedJobIds(Long userId) {
         return repository.findJobIdsByCandidateUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public long count(Long userId) {
+        return repository.countByCandidateUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public Set<Long> savedAmong(Long userId, Collection<Long> jobIds) {
+        return new HashSet<>(repository.findSavedAmong(userId, jobIds));
     }
 }

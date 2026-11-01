@@ -5,6 +5,7 @@ import com.hiresphere.auth.service.AuthService;
 import com.hiresphere.auth.service.EmailVerificationService;
 import com.hiresphere.auth.service.PasswordService;
 import com.hiresphere.common.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+@Tag(name = "Auth", description = "Register, login, tokens, email verification and passwords")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

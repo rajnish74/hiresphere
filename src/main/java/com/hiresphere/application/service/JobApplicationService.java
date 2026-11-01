@@ -5,6 +5,7 @@ import com.hiresphere.application.entity.ApplicationStatus;
 import com.hiresphere.application.entity.JobApplication;
 import com.hiresphere.application.event.ApplicationStatusChangedEvent;
 import com.hiresphere.application.event.ApplicationSubmittedEvent;
+import com.hiresphere.application.repository.ApplicationSpecifications;
 import com.hiresphere.application.repository.JobApplicationRepository;
 import com.hiresphere.candidate.dto.ApplicantSnapshot;
 import com.hiresphere.candidate.service.CandidateProfileService;
@@ -20,6 +21,7 @@ import com.hiresphere.common.util.TextUtil;
 import com.hiresphere.job.dto.JobRef;
 import com.hiresphere.job.event.JobFilledEvent;
 import com.hiresphere.job.service.JobQueryService;
+import com.hiresphere.job.service.JobStatsService;
 import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.service.CompanyService;
@@ -57,6 +59,7 @@ public class JobApplicationService {
     private final UserService userService;
     private final FileStorageService storage;
     private final ApplicationEventPublisher eventPublisher;
+    private final JobStatsService jobStatsService;
 
     public record ResumeDownload(Resource resource, String filename) {
     }
@@ -92,6 +95,12 @@ public class JobApplicationService {
         application.setCompanyId(job.companyId());
         application.setCandidateUserId(userId);
         application.setCoverLetter(req == null ? null : TextUtil.blankToNull(req.coverLetter()));
+        if (req != null) {
+            application.setPhone(req.phone());
+            application.setCurrentLocation(TextUtil.blankToNull(req.currentLocation()));
+            application.setExpectedSalary(req.expectedSalary());
+            application.setAvailableFrom(req.availableFrom());
+        }
         application.setJobTitle(job.title());
         application.setCompanyName(companyName);
         application.setCandidateName(candidateName);
@@ -105,6 +114,7 @@ public class JobApplicationService {
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateResourceException("You have already applied to this job");
         }
+        jobStatsService.applicationSubmitted(job.id());
 
         eventPublisher.publishEvent(new ApplicationSubmittedEvent(
                 application.getId(), job.companyId(), userId, candidateName, job.title(), companyName));
@@ -113,11 +123,13 @@ public class JobApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<ApplicationSummary> listMine(Long userId, ApplicationStatus status, int page, int size) {
-        Pageable pageable = PageUtil.newestFirst(page, size);
-        Page<JobApplication> result = (status == null)
-                ? applicationRepository.findByCandidateUserId(userId, pageable)
-                : applicationRepository.findByCandidateUserIdAndStatus(userId, status, pageable);
+    public PageResponse<ApplicationSummary> listMine(Long userId, ApplicationStatus status, String q,
+                                                     int page, int size) {
+        if (q != null && q.length() > 100) {
+            throw new BadRequestException("Search text is too long (max 100 characters)");
+        }
+        Page<JobApplication> result = applicationRepository.findAll(
+                ApplicationSpecifications.mine(userId, status, q), PageUtil.newestFirst(page, size));
         return PageResponse.of(result, ApplicationSummary::from);
     }
 
@@ -131,6 +143,7 @@ public class JobApplicationService {
         JobApplication application = findOwnedByCandidate(userId, applicationId);
         ApplicationStatus from = application.getStatus();
         application.transitionTo(ApplicationStatus.WITHDRAWN, userId, null);
+        jobStatsService.applicationWithdrawn(application.getJobId());
         eventPublisher.publishEvent(
                 statusChanged(application, from, ApplicationStatus.WITHDRAWN, null, true));
         return ApplicationDetailResponse.from(application);
@@ -255,5 +268,21 @@ public class JobApplicationService {
                                                         ApplicationStatus to, String note, boolean byCandidate) {
         return new ApplicationStatusChangedEvent(a.getId(), a.getCompanyId(), a.getCandidateUserId(),
                 a.getCandidateName(), a.getJobTitle(), a.getCompanyName(), from, to, note, byCandidate);
+    }
+
+    @Transactional(readOnly = true)
+    public MyApplicationCounts myCounts(Long userId) {
+        Map<ApplicationStatus, Long> byStatus = CountUtil.toEnumMap(ApplicationStatus.class,
+                applicationRepository.countGroupedByStatusForCandidate(userId));
+        long total = byStatus.values().stream().mapToLong(Long::longValue).sum();
+        return new MyApplicationCounts(total, byStatus);
+    }
+
+    @Transactional
+    public ApplyPrefill prefill(Long userId) {
+        UserResponse user = userService.getById(userId);
+        ApplicantSnapshot snapshot = candidateProfileService.getSnapshot(userId);
+        return new ApplyPrefill(user.fullName(), user.email(), user.phone(), snapshot.location(),
+                snapshot.headline(), snapshot.resumeStorageKey() != null, snapshot.resumeOriginalName());
     }
 }

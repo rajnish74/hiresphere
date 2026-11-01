@@ -16,6 +16,7 @@ import com.hiresphere.common.storage.FileStorageService;
 import com.hiresphere.job.dto.JobRef;
 import com.hiresphere.job.event.JobFilledEvent;
 import com.hiresphere.job.service.JobQueryService;
+import com.hiresphere.job.service.JobStatsService;
 import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.CompanyStatus;
 import com.hiresphere.recruiter.service.CompanyService;
@@ -25,10 +26,14 @@ import com.hiresphere.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,9 +42,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class JobApplicationServiceTest {
@@ -62,10 +65,13 @@ class JobApplicationServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private JobStatsService jobStatsService;
+
     @BeforeEach
     void setUp() {
         service = new JobApplicationService(applicationRepository, jobQueryService, companyService,
-                candidateProfileService, userService, storage, eventPublisher);
+                candidateProfileService, userService, storage, eventPublisher, jobStatsService);
     }
 
     private final JobRef job = new JobRef(10L, "Java Dev", 5L);
@@ -79,6 +85,7 @@ class JobApplicationServiceTest {
                 .isInstanceOf(DuplicateResourceException.class);
 
         verify(storage, never()).copy(any());
+        verify(jobStatsService, never()).applicationSubmitted(any());
     }
 
     @Test
@@ -104,7 +111,7 @@ class JobApplicationServiceTest {
         when(applicationRepository.saveAndFlush(any(JobApplication.class))).thenAnswer(i -> i.getArgument(0));
 
 
-        ApplicationDetailResponse response = service.apply(1L, 10L, new ApplyRequest("Hello team"));
+        ApplicationDetailResponse response = service.apply(1L, 10L, new ApplyRequest("Hello team", null, null, null, null));
 
         assertThat(response.status()).isEqualTo(ApplicationStatus.APPLIED);
         assertThat(response.jobTitle()).isEqualTo("Java Dev");
@@ -259,5 +266,144 @@ class JobApplicationServiceTest {
 
         verify(storage, never()).copy(any());
         verify(applicationRepository, never()).saveAndFlush(any());
+    }
+
+    private void stubSuccessfulApply() {
+        when(jobQueryService.getPublicJob(10L)).thenReturn(job);
+        when(applicationRepository.existsByJobIdAndCandidateUserId(10L, 1L)).thenReturn(false);
+        when(candidateProfileService.getSnapshot(1L))
+                .thenReturn(new ApplicantSnapshot("Backend dev", "orig.pdf", "cv.pdf"));
+        when(userService.getById(1L)).thenReturn(new UserResponse(1L, "Asha", "asha@test.com", Role.CANDIDATE, true));
+        when(companyService.getNames(Set.of(5L))).thenReturn(Map.of(5L, "Acme"));
+        when(storage.copy("orig.pdf")).thenReturn("copy.pdf");
+        when(applicationRepository.saveAndFlush(any(JobApplication.class))).thenAnswer(i -> i.getArgument(0));
+    }
+
+    @Test
+    void applyShouldStoreTheWizardFields() {
+        stubSuccessfulApply();
+        ApplyRequest req = new ApplyRequest("Hello", "+919876543210", "  Patna ", new BigDecimal("900000"),
+                LocalDate.of(2026, 12, 1));
+
+        service.apply(1L, 10L, req);
+
+        ArgumentCaptor<JobApplication> saved = ArgumentCaptor.forClass(JobApplication.class);
+        verify(applicationRepository).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getPhone()).isEqualTo("+919876543210");
+        assertThat(saved.getValue().getCurrentLocation()).isEqualTo("Patna");
+        assertThat(saved.getValue().getExpectedSalary()).isEqualByComparingTo("900000");
+        assertThat(saved.getValue().getAvailableFrom()).isEqualTo(LocalDate.of(2026, 12, 1));
+    }
+
+    @Test
+    void applyWithoutAnyBodyShouldStillWork() {
+        stubSuccessfulApply();
+
+        service.apply(1L, 10L, null);
+
+        ArgumentCaptor<JobApplication> saved = ArgumentCaptor.forClass(JobApplication.class);
+        verify(applicationRepository).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getPhone()).isNull();
+        assertThat(saved.getValue().getExpectedSalary()).isNull();
+    }
+
+    @Test
+    void prefillShouldCombineAccountAndProfileData() {
+        when(userService.getById(1L)).thenReturn(
+                new UserResponse(1L, "Asha", "asha@test.com", Role.CANDIDATE, true, "+919876543210"));
+        when(candidateProfileService.getSnapshot(1L))
+                .thenReturn(new ApplicantSnapshot("Backend dev", "k.pdf", "cv.pdf", "Patna"));
+
+        ApplyPrefill prefill = service.prefill(1L);
+
+        assertThat(prefill.fullName()).isEqualTo("Asha");
+        assertThat(prefill.email()).isEqualTo("asha@test.com");
+        assertThat(prefill.phone()).isEqualTo("+919876543210");
+        assertThat(prefill.location()).isEqualTo("Patna");
+        assertThat(prefill.hasResume()).isTrue();
+        assertThat(prefill.resumeName()).isEqualTo("cv.pdf");
+    }
+
+    @Test
+    void prefillWithoutAResumeShouldSayNoResume() {
+        when(userService.getById(1L)).thenReturn(new UserResponse(1L, "Asha", "asha@test.com", Role.CANDIDATE, true));
+        when(candidateProfileService.getSnapshot(1L)).thenReturn(new ApplicantSnapshot(null, null, null));
+
+        ApplyPrefill prefill = service.prefill(1L);
+
+        assertThat(prefill.hasResume()).isFalse();
+        assertThat(prefill.phone()).isNull();
+    }
+
+    @Test
+    void listMineShouldRejectAVeryLongSearchText() {
+        assertThatThrownBy(() -> service.listMine(1L, null, "x".repeat(101), 0, 20))
+                .isInstanceOf(BadRequestException.class);
+
+        verifyNoInteractions(applicationRepository);
+    }
+
+    @Test
+    void myCountsShouldZeroFillMissingStatuses() {
+        when(applicationRepository.countGroupedByStatusForCandidate(1L))
+                .thenReturn(List.<Object[]>of(new Object[]{ApplicationStatus.APPLIED, 2L},
+                        new Object[]{ApplicationStatus.HIRED, 1L}));
+
+        MyApplicationCounts counts = service.myCounts(1L);
+
+        assertThat(counts.total()).isEqualTo(3L);
+        assertThat(counts.byStatus()).containsEntry(ApplicationStatus.APPLIED, 2L)
+                .containsEntry(ApplicationStatus.OFFER, 0L);
+    }
+
+    @Test
+    void successfulApplyShouldIncrementTheJobsApplicantCount() {
+        stubSuccessfulApply();
+
+        service.apply(1L, 10L, null);
+
+        verify(jobStatsService).applicationSubmitted(10L);
+    }
+
+    @Test
+    void aRaceLostOnTheUniqueConstraintShouldNotCountTheApplicant() {
+        when(jobQueryService.getPublicJob(10L)).thenReturn(job);
+        when(applicationRepository.existsByJobIdAndCandidateUserId(10L, 1L)).thenReturn(false);
+        when(candidateProfileService.getSnapshot(1L))
+                .thenReturn(new ApplicantSnapshot("Backend dev", "orig.pdf", "cv.pdf"));
+        when(userService.getById(1L)).thenReturn(new UserResponse(1L, "Asha", "asha@test.com", Role.CANDIDATE, true));
+        when(companyService.getNames(Set.of(5L))).thenReturn(Map.of(5L, "Acme"));
+        when(storage.copy("orig.pdf")).thenReturn("copy.pdf");
+        when(applicationRepository.saveAndFlush(any(JobApplication.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertThatThrownBy(() -> service.apply(1L, 10L, null)).isInstanceOf(DuplicateResourceException.class);
+
+        verify(jobStatsService, never()).applicationSubmitted(any());
+    }
+
+    @Test
+    void withdrawingShouldDecrementTheCount() {
+        JobApplication application = new JobApplication();
+        application.setJobId(10L);
+        application.recordSubmitted(1L);
+        when(applicationRepository.findByIdAndCandidateUserId(7L, 1L)).thenReturn(Optional.of(application));
+
+        service.withdraw(1L, 7L);
+
+        verify(jobStatsService).applicationWithdrawn(10L);
+    }
+
+    @Test
+    void withdrawingAnAlreadyWithdrawnApplicationShouldNotTouchTheCount() {
+        JobApplication application = new JobApplication();
+        application.setJobId(10L);
+        application.recordSubmitted(1L);
+        application.transitionTo(ApplicationStatus.WITHDRAWN, 1L, null);
+        when(applicationRepository.findByIdAndCandidateUserId(7L, 1L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> service.withdraw(1L, 7L)).isInstanceOf(AppException.class);
+
+        verify(jobStatsService, never()).applicationWithdrawn(any());
     }
 }

@@ -43,4 +43,13 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
     List<Object[]> countGroupedByStatus();
 
     long countByHiddenTrue();
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = "UPDATE jobs SET applications_count = applications_count + 1 WHERE id = :id", nativeQuery = true)
+    int incrementApplications(@Param("id") Long id);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = "UPDATE jobs SET applications_count = applications_count - 1 WHERE id = :id AND applications_count > 0",
+            nativeQuery = true)
+    int decrementApplications(@Param("id") Long id);
 }
