@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------- Stage 1: build ----------
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM eclipse-temurin:24-jdk-alpine AS build
 WORKDIR /workspace
 COPY .mvn .mvn
 COPY mvnw pom.xml ./
@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/root/.m2 \
     ./mvnw -B -q -DskipTests package && cp target/*.jar /workspace/app.jar
 
 # ---------- Stage 2: run ----------
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:24-jre-alpine
 RUN addgroup -S app && adduser -S -G app app \
     && mkdir -p /app/uploads/resumes \
     && chown -R app:app /app
