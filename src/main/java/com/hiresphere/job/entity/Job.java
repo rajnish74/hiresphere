@@ -72,6 +72,14 @@ public class Job extends BaseEntity {
 
     private Instant expiresAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private SalaryPeriod salaryPeriod = SalaryPeriod.YEAR;
+
+    @Setter(AccessLevel.NONE)
+    @Column(name = "salary_max_annual", precision = 18, scale = 2, insertable = false, updatable = false)
+    private BigDecimal salaryMaxAnnual;
+
     @ManyToMany
     @JoinTable(name = "job_skills",
             joinColumns = @JoinColumn(name = "job_id"),

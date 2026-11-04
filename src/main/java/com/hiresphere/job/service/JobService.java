@@ -11,6 +11,7 @@ import com.hiresphere.job.dto.JobResponse;
 import com.hiresphere.job.dto.JobSummaryResponse;
 import com.hiresphere.job.entity.Job;
 import com.hiresphere.job.entity.JobStatus;
+import com.hiresphere.job.entity.SalaryPeriod;
 import com.hiresphere.job.repository.JobRepository;
 import com.hiresphere.recruiter.dto.CompanySummary;
 import com.hiresphere.recruiter.entity.CompanyStatus;
@@ -132,6 +133,14 @@ public class JobService {
         if (r.salaryMin() != null && r.salaryMax() != null && r.salaryMax().compareTo(r.salaryMin()) < 0) {
             throw new BadRequestException("Maximum salary cannot be less than minimum salary");
         }
+        boolean hasSalary = r.salaryMin() != null || r.salaryMax() != null;
+
+        if (hasSalary && r.salaryPeriod() == null) {
+            throw new BadRequestException(
+                    "Choose whether the salary is per year, per month or per hour"
+            );
+        }
+
         if (r.maxExperienceYears() != null && r.maxExperienceYears() < r.minExperienceYears()) {
             throw new BadRequestException("Maximum experience cannot be less than minimum experience");
         }
@@ -147,6 +156,7 @@ public class JobService {
         j.setMaxExperienceYears(r.maxExperienceYears());
         j.setSalaryMin(r.salaryMin());
         j.setSalaryMax(r.salaryMax());
+        j.setSalaryPeriod(r.salaryPeriod() != null ? r.salaryPeriod() : SalaryPeriod.YEAR);
         j.setOpenings(r.openings());
         j.setExpiresAt(r.expiresAt());
 

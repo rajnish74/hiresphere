@@ -4,3 +4,4 @@ target
 *.iml
 uploads
 .env
+frontend

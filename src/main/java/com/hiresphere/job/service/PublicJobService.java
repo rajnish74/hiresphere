@@ -57,7 +57,7 @@ public class PublicJobService {
         JobSort effective = (sort == null) ? JobSort.NEWEST : sort;
         return switch (effective) {
             case NEWEST -> Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.desc("id"));
-            case SALARY_HIGH -> Sort.by(Sort.Order.desc("salaryMax").nullsLast(), Sort.Order.desc("id"));
+            case SALARY_HIGH -> Sort.by(Sort.Order.desc("salaryMaxAnnual").nullsLast(), Sort.Order.desc("id"));
             case EXPIRING_SOON -> Sort.by(Sort.Order.asc("expiresAt").nullsLast(), Sort.Order.desc("id"));
         };
     }

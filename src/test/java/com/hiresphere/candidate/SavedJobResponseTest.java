@@ -36,6 +36,7 @@ class SavedJobResponseTest {
         assertThat(r.salaryMax()).isEqualByComparingTo("1200000");
         assertThat(r.minExperienceYears()).isZero();
         assertThat(r.currency()).isEqualTo("INR");
+        assertThat(r.salaryPeriod()).isEqualTo(com.hiresphere.job.entity.SalaryPeriod.YEAR);
     }
 
     @Test

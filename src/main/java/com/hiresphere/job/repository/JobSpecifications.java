@@ -87,7 +87,7 @@ public final class JobSpecifications {
         }
         if (c.minSalary() != null) {
             spec = spec.and((root, query, cb) ->
-                    cb.greaterThanOrEqualTo(root.<BigDecimal>get("salaryMax"), c.minSalary()));
+                    cb.greaterThanOrEqualTo(root.<BigDecimal>get("salaryMaxAnnual"), c.minSalary()));
         }
         if (c.skills() != null && !c.skills().isEmpty()) {
             spec = spec.and(anySkill(c.skills()));

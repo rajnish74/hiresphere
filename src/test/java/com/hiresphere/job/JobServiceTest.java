@@ -1,9 +1,10 @@
 package com.hiresphere.job;
 
 import com.hiresphere.common.exception.AppException;
+import com.hiresphere.common.exception.BadRequestException;
+import com.hiresphere.job.dto.JobRequest;
 import com.hiresphere.job.dto.JobResponse;
-import com.hiresphere.job.entity.Job;
-import com.hiresphere.job.entity.JobStatus;
+import com.hiresphere.job.entity.*;
 import com.hiresphere.job.repository.JobRepository;
 import com.hiresphere.job.service.JobService;
 import com.hiresphere.recruiter.dto.CompanySummary;
@@ -19,15 +20,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class JobServiceTest {
@@ -152,5 +154,43 @@ class JobServiceTest {
                 .hasMessageContaining("hidden");
 
         assertThat(job.getStatus()).isEqualTo(JobStatus.DRAFT);
+    }
+
+    private JobRequest request(BigDecimal min, BigDecimal max, SalaryPeriod period) {
+        return new JobRequest("Java Developer", "A reasonably long job description for testing.", "Pune",
+                JobType.FULL_TIME, WorkMode.REMOTE, 0, 2, min, max, 1, null, List.of(), period);
+    }
+
+    private void stubApprovedCompany() {
+        when(companyService.getOwnCompanySummary(1L))
+                .thenReturn(new CompanySummary(5L, "Demo Corp", CompanyStatus.APPROVED));
+    }
+
+    @Test
+    void aSalaryWithoutAPeriodShouldBeRejected() {
+        stubApprovedCompany();
+
+        assertThatThrownBy(() -> service.create(1L, request(new BigDecimal("600000"), null, null)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("per year");
+
+        verify(jobRepository, never()).save(any());
+    }
+
+    @Test
+    void noSalaryNeedsNoPeriodAndDefaultsToYear() {
+        stubApprovedCompany();
+        when(jobRepository.save(any(Job.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThat(service.create(1L, request(null, null, null)).salaryPeriod()).isEqualTo(SalaryPeriod.YEAR);
+    }
+
+    @Test
+    void theChosenPeriodShouldBeStored() {
+        stubApprovedCompany();
+        when(jobRepository.save(any(Job.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThat(service.create(1L, request(new BigDecimal("25000"), new BigDecimal("40000"), SalaryPeriod.MONTH))
+                .salaryPeriod()).isEqualTo(SalaryPeriod.MONTH);
     }
 }

@@ -5,6 +5,7 @@ import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.job.dto.*;
 import com.hiresphere.job.entity.Job;
 import com.hiresphere.job.entity.JobType;
+import com.hiresphere.job.entity.SalaryPeriod;
 import com.hiresphere.job.entity.WorkMode;
 import com.hiresphere.job.repository.JobFacetQueries;
 import com.hiresphere.job.repository.JobRepository;
@@ -404,5 +405,49 @@ class PublicJobSearchTest {
 
         assertThat(keys).containsOnlyKeys(visible.getId());
         assertThat(keys.get(visible.getId())).containsExactly("zm" + tag);
+    }
+
+    @Test
+    void salaryFilterShouldCompareAnnualisedPayAcrossPeriods() {
+        Company c = company(true);
+        Job monthly = job(c, "Monthly", true);
+        monthly.setSalaryPeriod(SalaryPeriod.MONTH);
+        monthly.setSalaryMax(new BigDecimal("100000"));   // 12 lakh / saal
+        Job hourly = job(c, "Hourly", true);
+        hourly.setSalaryPeriod(SalaryPeriod.HOUR);
+        hourly.setSalaryMax(new BigDecimal("500"));        // 10 lakh / saal (2000 ghante)
+        Job yearly = job(c, "Yearly", true);
+        yearly.setSalaryMax(new BigDecimal("900000"));     // 9 lakh / saal
+        jobRepository.flush();
+
+        List<String> titles = service.search(
+                        new JobSearchCriteria(tag, null, null, null, null, new BigDecimal("1000000"), null, null), 0, 50)
+                .content().stream().map(PublicJobSummary::title).toList();
+
+        assertThat(titles).hasSize(2);
+        assertThat(titles).anyMatch(t -> t.startsWith("Monthly")).anyMatch(t -> t.startsWith("Hourly"));
+        assertThat(titles).noneMatch(t -> t.startsWith("Yearly"));
+    }
+
+    @Test
+    void salarySortShouldRankByAnnualisedPay() {
+        Company c = company(true);
+        Job monthly = job(c, "Monthly", true);
+        monthly.setSalaryPeriod(SalaryPeriod.MONTH);
+        monthly.setSalaryMax(new BigDecimal("100000"));    // 12L
+        Job yearly = job(c, "Yearly", true);
+        yearly.setSalaryMax(new BigDecimal("900000"));     // 9L
+        Job hourly = job(c, "Hourly", true);
+        hourly.setSalaryPeriod(SalaryPeriod.HOUR);
+        hourly.setSalaryMax(new BigDecimal("700"));         // 14L
+        jobRepository.flush();
+
+        List<String> titles = service.search(
+                        new JobSearchCriteria(tag, null, null, null, null, null, null, JobSort.SALARY_HIGH), 0, 50)
+                .content().stream().map(PublicJobSummary::title).toList();
+
+        assertThat(titles.get(0)).startsWith("Hourly");
+        assertThat(titles.get(1)).startsWith("Monthly");
+        assertThat(titles.get(2)).startsWith("Yearly");
     }
 }

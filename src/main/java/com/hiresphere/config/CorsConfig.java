@@ -1,5 +1,6 @@
 package com.hiresphere.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,12 +11,19 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.time.Duration;
 import java.util.List;
 
+@Slf4j
 @Configuration
 @EnableConfigurationProperties(CorsProperties.class)
 public class CorsConfig {
 
     @Bean
     CorsConfigurationSource corsConfigurationSource(CorsProperties props) {
+        if (props.allowedOrigins().isEmpty()) {
+            log.warn("CORS: no allowed origins configured (app.cors.allowed-origins). "
+                    + "Every browser request from another origin will get 403.");
+        } else {
+            log.info("CORS allowed origins: {}", props.allowedOrigins());
+        }
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration(props));
         return source;
