@@ -23,6 +23,10 @@ public class NotificationOptOut {
     @Column(nullable = false, length = 30, updatable = false)
     private NotificationCategory category;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10, insertable = false, updatable = false)
+    private NotificationChannel channel;
+
     @Column(nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 }

@@ -5,10 +5,13 @@ import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.util.PageUtil;
 import com.hiresphere.notification.dto.NotificationResponse;
 import com.hiresphere.notification.entity.InAppNotification;
+import com.hiresphere.notification.entity.NotificationChannel;
 import com.hiresphere.notification.entity.NotificationTarget;
 import com.hiresphere.notification.entity.NotificationType;
+import com.hiresphere.notification.event.InAppNotificationCreatedEvent;
 import com.hiresphere.notification.repository.InAppNotificationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,11 +25,17 @@ import java.time.Instant;
 public class InAppNotificationService {
 
     private final InAppNotificationRepository repository;
+    private final NotificationPreferenceService preferences;
+    private final ApplicationEventPublisher events;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void create(Long userId, NotificationType type, String subject, String detail, String note,
                        NotificationTarget targetType, Long targetId) {
+        if (!preferences.isEnabled(userId, type.category(), NotificationChannel.IN_APP)) {
+            return;
+        }
         repository.save(InAppNotification.create(userId, type, subject, detail, note, targetType, targetId));
+        events.publishEvent(new InAppNotificationCreatedEvent(userId));
     }
 
     @Transactional(readOnly = true)
@@ -55,4 +64,7 @@ public class InAppNotificationService {
     public int markAllRead(Long userId) {
         return repository.markAllRead(userId, Instant.now());
     }
+
+
+
 }

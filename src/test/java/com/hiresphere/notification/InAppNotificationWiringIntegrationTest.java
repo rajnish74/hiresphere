@@ -4,10 +4,15 @@ import com.hiresphere.application.entity.ApplicationStatus;
 import com.hiresphere.application.event.ApplicationStatusChangedEvent;
 import com.hiresphere.application.event.ApplicationSubmittedEvent;
 import com.hiresphere.common.exception.ResourceNotFoundException;
+import com.hiresphere.job.entity.JobReportStatus;
+import com.hiresphere.job.event.JobReportClosedEvent;
+import com.hiresphere.notification.dto.ChannelChoice;
 import com.hiresphere.notification.dto.NotificationResponse;
+import com.hiresphere.notification.entity.NotificationCategory;
 import com.hiresphere.notification.entity.NotificationTarget;
 import com.hiresphere.notification.entity.NotificationType;
 import com.hiresphere.notification.service.InAppNotificationService;
+import com.hiresphere.notification.service.NotificationPreferenceService;
 import com.hiresphere.recruiter.entity.Company;
 import com.hiresphere.recruiter.repository.CompanyRepository;
 import com.hiresphere.user.entity.Role;
@@ -21,6 +26,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,6 +44,9 @@ class InAppNotificationWiringIntegrationTest {
     private UserRepository userRepository;
     @Autowired
     private CompanyRepository companyRepository;
+
+    @Autowired
+    private NotificationPreferenceService preferenceService;
 
     private User recruiter;
     private User candidate;
@@ -108,5 +117,18 @@ class InAppNotificationWiringIntegrationTest {
         assertThat(notifications.unreadCount(recruiter.getId())).isZero();
         assertThat(notifications.list(recruiter.getId(), true, 0, 20).content()).isEmpty();
         assertThat(notifications.list(recruiter.getId(), false, 0, 20).content().get(0).read()).isTrue();
+    }
+
+    @Test
+    void aCandidateWhoSwitchedOffTheBellForUpdatesShouldStillGetOtherNotifications() {
+        preferenceService.update(candidate.getId(),
+                Map.of(NotificationCategory.APPLICATION_UPDATES, new ChannelChoice(null, false)));
+
+        publisher.publishEvent(new ApplicationStatusChangedEvent(77L, company.getId(), candidate.getId(), "Asha",
+                "Java Dev", "Acme", ApplicationStatus.APPLIED, ApplicationStatus.SHORTLISTED, "Good", false));
+        assertThat(notifications.unreadCount(candidate.getId())).isZero();
+
+        publisher.publishEvent(new JobReportClosedEvent(candidate.getId(), 20L, "Java Dev", JobReportStatus.RESOLVED));
+        assertThat(notifications.unreadCount(candidate.getId())).isEqualTo(1);   // REPORT_UPDATES abhi on hai
     }
 }
