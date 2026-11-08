@@ -14,7 +14,8 @@ public class AiException extends AppException {
         MISCONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "AI is temporarily unavailable.", false),
         UPSTREAM(HttpStatus.BAD_GATEWAY, "The AI service had a problem. Please try again.", true),
         BLOCKED(HttpStatus.UNPROCESSABLE_ENTITY, "The AI could not process this content.", false),
-        EMPTY(HttpStatus.BAD_GATEWAY, "The AI did not return an answer. Please try again.", false);
+        EMPTY(HttpStatus.BAD_GATEWAY, "The AI did not return an answer. Please try again.", false),
+        INVALID_OUTPUT(HttpStatus.BAD_GATEWAY, "The AI returned an answer we could not use. Please try again.", true);
 
         private final HttpStatus status;
         private final String publicMessage;

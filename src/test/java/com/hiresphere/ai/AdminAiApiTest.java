@@ -28,4 +28,9 @@ class AdminAiApiTest {
         assertThat(status("GET", "/api/v1/admin/ai/status")).isEqualTo(401);
         assertThat(status("POST", "/api/v1/admin/ai/ping")).isEqualTo(401);
     }
+
+    @Test
+    void theSkillsPreviewShouldNeedALogin() throws Exception {
+        assertThat(status("POST", "/api/v1/admin/ai/skills-preview")).isEqualTo(401);
+    }
 }

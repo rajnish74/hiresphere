@@ -1,0 +1,3 @@
+Extract the skills from the resume between the markers below.
+
+{{resume}}
