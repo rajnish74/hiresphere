@@ -33,4 +33,9 @@ class AdminAiApiTest {
     void theSkillsPreviewShouldNeedALogin() throws Exception {
         assertThat(status("POST", "/api/v1/admin/ai/skills-preview")).isEqualTo(401);
     }
+
+    @Test
+    void theHealthAndPreviewEndpointsShouldNeedALogin() throws Exception {
+        assertThat(status("GET", "/api/v1/admin/ai/health")).isEqualTo(401);
+    }
 }

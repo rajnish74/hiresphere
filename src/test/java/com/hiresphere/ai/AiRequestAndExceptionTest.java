@@ -55,6 +55,8 @@ class AiRequestAndExceptionTest {
         assertThat(new AiException(AiException.Kind.EMPTY, "").isRetryable()).isFalse();
         assertThat(new AiException(AiException.Kind.DISABLED, "").isRetryable()).isFalse();
         assertThat(new AiException(AiException.Kind.INVALID_OUTPUT, "").isRetryable()).isTrue();
+        assertThat(new AiException(AiException.Kind.CIRCUIT_OPEN, "").isRetryable()).isFalse();
+        assertThat(new AiException(AiException.Kind.BUSY, "").isRetryable()).isFalse();
     }
 
     @Test

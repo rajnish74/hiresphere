@@ -87,6 +87,17 @@ app:
       read-timeout: 30s
       max-output-tokens: 1024
 
+    resilience:
+      max-attempts: 3
+      initial-backoff: 500ms
+      max-backoff: 4s
+      total-budget: 45s
+      failure-threshold: 5
+      open-duration: 30s
+      max-concurrent: 4
+      acquire-timeout: 2s
+
+
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:HireSphere <no-reply@hiresphere.local>}
