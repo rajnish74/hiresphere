@@ -154,4 +154,53 @@ class InAppNotificationRepositoryIntegrationTest {
         assertThat(aliceLeft).containsExactlyInAnyOrder("a4", "a5");
         assertThat(repository.findByUserId(bob.getId(), PageRequest.of(0, 10)).getContent()).hasSize(1);
     }
+
+    @Test
+    void deleteOwnedShouldRemoveOnlyMyRowAndTheUnreadCountShouldFall() {
+        InAppNotification mine = add(alice, "mine");
+        InAppNotification bobs = add(bob, "bobs");
+        assertThat(repository.countByUserIdAndReadAtIsNull(alice.getId())).isEqualTo(1);
+
+        assertThat(repository.deleteOwned(bobs.getId(), alice.getId())).isZero();   // doosre ki row nahi hatti
+        assertThat(repository.findById(bobs.getId())).isPresent();
+
+        assertThat(repository.deleteOwned(mine.getId(), alice.getId())).isEqualTo(1);
+        assertThat(repository.findById(mine.getId())).isEmpty();
+        assertThat(repository.countByUserIdAndReadAtIsNull(alice.getId())).isZero();
+        assertThat(repository.deleteOwned(mine.getId(), alice.getId())).isZero();   // dobara: kuch nahi
+    }
+
+    @Test
+    void deleteAllReadShouldKeepTheUnreadOnes() {
+        InAppNotification read = add(alice, "read");
+        add(alice, "unread");
+        repository.markRead(read.getId(), alice.getId(), Instant.now());
+
+        assertThat(repository.deleteAllRead(alice.getId())).isEqualTo(1);
+
+        assertThat(repository.findByUserId(alice.getId(), PageRequest.of(0, 10))
+                .map(InAppNotification::getSubject).getContent()).containsExactly("unread");
+    }
+
+    @Test
+    void deleteAllForShouldClearTheCallersInboxAndNobodyElses() {
+        add(alice, "a1");
+        add(alice, "a2");
+        add(bob, "b1");
+
+        assertThat(repository.deleteAllFor(alice.getId())).isEqualTo(2);
+
+        assertThat(repository.findByUserId(alice.getId(), PageRequest.of(0, 10)).getContent()).isEmpty();
+        assertThat(repository.findByUserId(bob.getId(), PageRequest.of(0, 10)).getContent()).hasSize(1);
+    }
+
+    @Test
+    void deletingARowTheCleanupJobWouldAlsoRemoveShouldBeHarmless() {
+        InAppNotification old = add(alice, "old");
+        backdate(old, 100);
+        repository.deleteOwned(old.getId(), alice.getId());
+
+        assertThat(repository.deleteOlderThan(Instant.now().minus(90, ChronoUnit.DAYS))).isGreaterThanOrEqualTo(0);
+        assertThat(repository.findById(old.getId())).isEmpty();
+    }
 }

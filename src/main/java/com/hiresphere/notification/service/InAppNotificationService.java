@@ -3,6 +3,7 @@ package com.hiresphere.notification.service;
 import com.hiresphere.common.dto.PageResponse;
 import com.hiresphere.common.exception.ResourceNotFoundException;
 import com.hiresphere.common.util.PageUtil;
+import com.hiresphere.notification.dto.DeleteScope;
 import com.hiresphere.notification.dto.NotificationResponse;
 import com.hiresphere.notification.entity.InAppNotification;
 import com.hiresphere.notification.entity.NotificationChannel;
@@ -63,6 +64,19 @@ public class InAppNotificationService {
     @Transactional
     public int markAllRead(Long userId) {
         return repository.markAllRead(userId, Instant.now());
+    }
+
+
+    @Transactional
+    public void delete(Long userId, Long id) {
+        if (repository.deleteOwned(id, userId) == 0) {
+            throw new ResourceNotFoundException("Notification not found");
+        }
+    }
+
+    @Transactional
+    public int deleteAll(Long userId, DeleteScope scope) {
+        return scope == DeleteScope.READ ? repository.deleteAllRead(userId) : repository.deleteAllFor(userId);
     }
 
 

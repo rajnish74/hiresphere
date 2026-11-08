@@ -42,4 +42,16 @@ public interface InAppNotificationRepository extends JpaRepository<InAppNotifica
                 WHERE rn > :keep)
             """, nativeQuery = true)
     int trimPerUser(@Param("keep") int keep);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from InAppNotification n where n.id = :id and n.userId = :userId")
+    int deleteOwned(@Param("id") Long id, @Param("userId") Long userId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from InAppNotification n where n.userId = :userId and n.readAt is not null")
+    int deleteAllRead(@Param("userId") Long userId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from InAppNotification n where n.userId = :userId")
+    int deleteAllFor(@Param("userId") Long userId);
 }

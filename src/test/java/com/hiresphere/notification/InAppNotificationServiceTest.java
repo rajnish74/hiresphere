@@ -3,6 +3,7 @@ package com.hiresphere.notification;
 
 import com.hiresphere.common.dto.PageResponse;
 import com.hiresphere.common.exception.ResourceNotFoundException;
+import com.hiresphere.notification.dto.DeleteScope;
 import com.hiresphere.notification.dto.NotificationResponse;
 import com.hiresphere.notification.entity.*;
 import com.hiresphere.notification.event.InAppNotificationCreatedEvent;
@@ -218,5 +219,37 @@ class InAppNotificationServiceTest {
                 .thenReturn(7);
 
         assertThat(service.markAllRead(1L)).isEqualTo(7);
+    }
+
+    @Test
+    void deletingMyOwnNotificationShouldSucceed() {
+        when(repository.deleteOwned(5L, 1L)).thenReturn(1);
+
+        assertThatCode(() -> service.delete(1L, 5L)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void deletingSomeoneElsesOrAMissingOrAlreadyDeletedNotificationShouldLookLikeNotFound() {
+        when(repository.deleteOwned(5L, 1L)).thenReturn(0);
+
+        assertThatThrownBy(() -> service.delete(1L, 5L)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void deletingTheReadOnesShouldNeverTouchTheUnreadOnes() {
+        when(repository.deleteAllRead(1L)).thenReturn(4);
+
+        assertThat(service.deleteAll(1L, DeleteScope.READ)).isEqualTo(4);
+
+        verify(repository, never()).deleteAllFor(any());
+    }
+
+    @Test
+    void deletingEverythingShouldUseTheDeleteAllQuery() {
+        when(repository.deleteAllFor(1L)).thenReturn(9);
+
+        assertThat(service.deleteAll(1L, DeleteScope.ALL)).isEqualTo(9);
+
+        verify(repository, never()).deleteAllRead(any());
     }
 }

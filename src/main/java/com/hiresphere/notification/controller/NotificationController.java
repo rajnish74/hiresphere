@@ -2,9 +2,7 @@ package com.hiresphere.notification.controller;
 
 import com.hiresphere.common.dto.ApiResponse;
 import com.hiresphere.common.dto.PageResponse;
-import com.hiresphere.notification.dto.NotificationResponse;
-import com.hiresphere.notification.dto.ReadAllResponse;
-import com.hiresphere.notification.dto.UnreadCountResponse;
+import com.hiresphere.notification.dto.*;
 import com.hiresphere.notification.service.InAppNotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,5 +50,21 @@ public class NotificationController {
 
     private Long userId(Jwt jwt) {
         return Long.valueOf(jwt.getSubject());
+    }
+
+
+    @Operation(summary = "Delete one notification", description = "404 if it is not yours or already gone")
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
+        service.delete(userId(jwt), id);
+        return ApiResponse.<Void>ok("Notification deleted", null);
+    }
+
+    @Operation(summary = "Delete many notifications",
+            description = "scope is required: READ deletes only the ones you have read, ALL deletes everything")
+    @DeleteMapping
+    public ApiResponse<DeletedCountResponse> deleteAll(@AuthenticationPrincipal Jwt jwt,
+                                                       @RequestParam DeleteScope scope) {
+        return ApiResponse.ok(new DeletedCountResponse(service.deleteAll(userId(jwt), scope)));
     }
 }
