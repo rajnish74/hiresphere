@@ -10,7 +10,7 @@ import org.springframework.web.client.RestClient;
 import java.net.http.HttpClient;
 
 @Configuration
-@EnableConfigurationProperties({AiProperties.class, ResilienceProperties.class})
+@EnableConfigurationProperties({AiProperties.class, ResilienceProperties.class, AiLimitsProperties.class})
 public class AiConfig {
 
     @Bean("geminiRestClient")

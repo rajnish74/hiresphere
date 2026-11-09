@@ -1,5 +1,6 @@
 package com.hiresphere.ai.skills;
 
+import com.hiresphere.ai.AiCallContext;
 import com.hiresphere.ai.AiException;
 import com.hiresphere.ai.AiException.Kind;
 import com.hiresphere.ai.AiResponse;
@@ -13,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -97,5 +99,31 @@ class SkillSuggestionServiceTest {
         when(knownSkills.names()).thenReturn(List.of());
 
         assertThat(service.suggest("Java").skills()).isEmpty();
+    }
+
+    @Test
+    void theUserVersionShouldRunUnderTheSkillsFeatureAndThatUser() {
+        AtomicReference<AiCallContext.Context> seen = new AtomicReference<>();
+        when(extractor.extract("Java dev")).thenAnswer(invocation -> {
+            seen.set(AiCallContext.current());
+            return new ExtractedSkills(List.of("Java"), 0, false, null);
+        });
+
+        service.suggest(42L, "Java dev");
+
+        assertThat(seen.get().userId()).isEqualTo(42L);
+        assertThat(seen.get().feature()).isEqualTo(SkillSuggestionService.FEATURE);
+        assertThat(AiCallContext.current().userId()).isNull();   // baad mein context saaf
+    }
+
+    @Test
+    void anAnswerFromTheCacheShouldBeMarkedAsCachedNotAsDegraded() {
+        when(extractor.extract("Java dev")).thenReturn(new ExtractedSkills(List.of("Java"), 0, false, null));
+
+        SkillSuggestions result = service.suggest("Java dev");
+
+        assertThat(result.cached()).isTrue();
+        assertThat(result.degraded()).isFalse();
+        assertThat(result.source()).isEqualTo(SkillSuggestions.Source.AI);
     }
 }

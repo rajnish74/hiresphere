@@ -12,4 +12,8 @@ public record SkillSuggestions(List<String> skills, Source source, String degrad
     public boolean degraded() {
         return source == Source.KEYWORD;
     }
+
+    public boolean cached() {
+        return source == Source.AI && ai == null;
+    }
 }

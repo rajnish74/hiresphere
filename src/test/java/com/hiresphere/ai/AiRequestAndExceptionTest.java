@@ -72,4 +72,14 @@ class AiRequestAndExceptionTest {
         assertThatThrownBy(() -> new DisabledAiClient().generate(AiRequest.text(null, "hi")))
                 .isInstanceOfSatisfying(AiException.class, e -> assertThat(e.getKind()).isEqualTo(AiException.Kind.DISABLED));
     }
+
+    @Test
+    void ourOwnLimitsShouldNotBeRetryableAndShouldTellWhoseLimitItIs() {
+        assertThat(new AiException(AiException.Kind.USER_RATE_LIMITED, "").isRetryable()).isFalse();
+        assertThat(new AiException(AiException.Kind.USER_RATE_LIMITED, "").getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(new AiException(AiException.Kind.BUDGET_EXCEEDED, "").getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(new AiException(AiException.Kind.BUDGET_EXCEEDED, "").getMessage()).contains("midnight UTC");
+        assertThat(new AiException(AiException.Kind.GLOBAL_BUDGET_EXCEEDED, "").getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(new AiException(AiException.Kind.GLOBAL_BUDGET_EXCEEDED, "").isRetryable()).isFalse();
+    }
 }

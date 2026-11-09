@@ -19,7 +19,13 @@ public class AiException extends AppException {
         CIRCUIT_OPEN(HttpStatus.SERVICE_UNAVAILABLE,
         "AI is temporarily unavailable. Please try again in a few minutes.", false),
         BUSY(HttpStatus.SERVICE_UNAVAILABLE,
-        "Too many AI requests are running right now. Please try again in a moment.", false);
+        "Too many AI requests are running right now. Please try again in a moment.", false),
+        USER_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS,
+                "You are using AI too quickly. Please wait a minute and try again.", false),
+        BUDGET_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS,
+                "You have used your AI allowance for today. It resets at midnight UTC.", false),
+        GLOBAL_BUDGET_EXCEEDED(HttpStatus.SERVICE_UNAVAILABLE,
+                "AI is paused for today. Please try again tomorrow.", false);
 
         private final HttpStatus status;
         private final String publicMessage;

@@ -10,7 +10,7 @@ import com.hiresphere.ai.gemini.GeminiClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Primary;
+
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -21,7 +21,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 
 @Slf4j
-@Primary
+
 @Component
 @ConditionalOnProperty(name = "app.ai.enabled", havingValue = "true")
 public class ResilientAiClient implements AiClient {

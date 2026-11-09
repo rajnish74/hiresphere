@@ -38,4 +38,10 @@ class AdminAiApiTest {
     void theHealthAndPreviewEndpointsShouldNeedALogin() throws Exception {
         assertThat(status("GET", "/api/v1/admin/ai/health")).isEqualTo(401);
     }
+
+    @Test
+    void usageAndQuotaShouldNeedALogin() throws Exception {
+        assertThat(status("GET", "/api/v1/admin/ai/usage")).isEqualTo(401);
+        assertThat(status("GET", "/api/v1/ai/quota")).isEqualTo(401);
+    }
 }

@@ -97,6 +97,14 @@ app:
       max-concurrent: 4
       acquire-timeout: 2s
 
+    limits:
+      per-user-per-minute: 10
+      per-user-daily-tokens: 50000
+      global-daily-tokens: 1000000
+      cache-ttl: 24h
+      cache-max-entries: 500
+      usage-retention-days: 90
+
 
   mail:
     enabled: ${MAIL_ENABLED:true}

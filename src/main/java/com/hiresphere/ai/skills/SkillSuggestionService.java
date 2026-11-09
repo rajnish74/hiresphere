@@ -1,5 +1,6 @@
 package com.hiresphere.ai.skills;
 
+import com.hiresphere.ai.AiCallContext;
 import com.hiresphere.ai.AiException;
 import com.hiresphere.ai.prompt.UntrustedText;
 import com.hiresphere.common.exception.BadRequestException;
@@ -16,6 +17,7 @@ public class SkillSuggestionService {
 
     private final ResumeSkillExtractor extractor;
     private final KnownSkillSource knownSkills;
+    public static final String FEATURE = "SKILLS_EXTRACT";
 
     public SkillSuggestions suggest(String resumeText) {
         UntrustedText.Cleaned cleaned = UntrustedText.clean(resumeText, ResumeSkillExtractor.MAX_RESUME_CHARS);
@@ -33,5 +35,9 @@ public class SkillSuggestionService {
             return new SkillSuggestions(found, SkillSuggestions.Source.KEYWORD, e.getKind().name(),
                     cleaned.truncated(), 0, null);
         }
+    }
+
+    public SkillSuggestions suggest(Long userId, String resumeText) {
+        return AiCallContext.with(FEATURE, userId, () -> suggest(resumeText));
     }
 }

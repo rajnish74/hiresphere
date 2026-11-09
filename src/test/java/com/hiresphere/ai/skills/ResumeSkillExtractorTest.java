@@ -1,11 +1,12 @@
 package com.hiresphere.ai.skills;
 
-import com.hiresphere.ai.AiClient;
-import com.hiresphere.ai.AiException;
+import com.hiresphere.ai.*;
 import com.hiresphere.ai.AiException.Kind;
-import com.hiresphere.ai.AiRequest;
-import com.hiresphere.ai.AiResponse;
+import com.hiresphere.ai.cache.AiResultCache;
+import com.hiresphere.ai.config.AiLimitsProperties;
 import com.hiresphere.ai.json.StructuredAi;
+import com.hiresphere.ai.usage.UsageEntry;
+import com.hiresphere.ai.usage.UsageStatus;
 import com.hiresphere.common.exception.BadRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,9 +22,8 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+
 
 @ExtendWith(MockitoExtension.class)
 class ResumeSkillExtractorTest {
@@ -33,9 +33,12 @@ class ResumeSkillExtractorTest {
 
     private ResumeSkillExtractor extractor;
 
+    private final FakeUsageStore usageStore = new FakeUsageStore();
+
     @BeforeEach
     void setUp() {
-        extractor = new ResumeSkillExtractor(new StructuredAi(client, JsonMapper.builder().build()));
+        extractor = new ResumeSkillExtractor(new StructuredAi(client, JsonMapper.builder().build()),
+                new AiResultCache(new AiLimitsProperties(0, 0, 0, null, 0, 0)), usageStore);
     }
 
     private void aiReturns(String json) {
@@ -218,5 +221,75 @@ class ResumeSkillExtractorTest {
 
         assertThat(result.skills()).containsExactly("ASP.NET");
         assertThat(result.droppedCount()).isEqualTo(1);   // ".NET" ASP ke andar ka tukda hai, alag skill nahi
+    }
+
+    @Test
+    void theSameResumeTheSecondTimeShouldComeFromTheCacheWithoutCallingTheAi() {
+        aiReturns("{\"skills\":[\"Java\"]}");
+
+        ExtractedSkills first = extractor.extract("Java developer");
+        ExtractedSkills second = extractor.extract("Java developer");
+
+        verify(client, times(1)).generate(any(AiRequest.class));
+        assertThat(first.ai()).isNotNull();
+        assertThat(second.ai()).isNull();
+        assertThat(second.skills()).containsExactly("Java");
+        assertThat(usageStore.entries).extracting(UsageEntry::status).containsExactly(UsageStatus.CACHED);
+    }
+
+    @Test
+    void spacingAndInvisibleCharactersShouldNotMakeTheSameResumeLookNew() {
+        aiReturns("{\"skills\":[\"Java\"]}");
+
+        extractor.extract("Java developer");
+        extractor.extract("Java   developer\u200B \n");
+
+        verify(client, times(1)).generate(any(AiRequest.class));
+    }
+
+    @Test
+    void aDifferentResumeShouldCallTheAiAgain() {
+        aiReturns("{\"skills\":[\"Java\"]}");
+
+        extractor.extract("Java developer");
+        extractor.extract("Java developer who also knows Docker");
+
+        verify(client, times(2)).generate(any(AiRequest.class));
+    }
+
+    @Test
+    void anUnusableAnswerShouldNeverBeCachedSoTheNextTryAsksAgain() {
+        when(client.generate(any(AiRequest.class))).thenReturn(
+                new AiResponse("not json at all", "STOP", false, 10, 5, 15, "m", 5),
+                new AiResponse("{\"skills\":[\"Java\"]}", "STOP", false, 10, 5, 15, "m", 5));
+
+        assertThatThrownBy(() -> extractor.extract("Java developer"))
+                .isInstanceOfSatisfying(AiException.class, e -> assertThat(e.getKind()).isEqualTo(Kind.INVALID_OUTPUT));
+        assertThat(extractor.extract("Java developer").skills()).containsExactly("Java");
+
+        verify(client, times(2)).generate(any(AiRequest.class));
+    }
+
+    @Test
+    void aCacheHitShouldBeLoggedForTheUserAndFeatureThatAsked() {
+        aiReturns("{\"skills\":[\"Java\"]}");
+
+        AiCallContext.with("SKILLS_EXTRACT", 5L, () -> extractor.extract("Java developer"));
+        AiCallContext.with("SKILLS_EXTRACT", 5L, () -> extractor.extract("Java developer"));
+
+        assertThat(usageStore.entries).hasSize(1);
+        assertThat(usageStore.entries.get(0).userId()).isEqualTo(5L);
+        assertThat(usageStore.entries.get(0).feature()).isEqualTo("SKILLS_EXTRACT");
+        assertThat(usageStore.entries.get(0).totalTokens()).isZero();
+    }
+
+    @Test
+    void theCacheShouldBeUsedEvenWhenWritingTheUsageRowFails() {
+        aiReturns("{\"skills\":[\"Java\"]}");
+        usageStore.failOnRecord = true;
+
+        extractor.extract("Java developer");
+
+        assertThat(extractor.extract("Java developer").skills()).containsExactly("Java");
     }
 }
