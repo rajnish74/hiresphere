@@ -8,8 +8,10 @@ import com.hiresphere.ai.AiRequest;
 import com.hiresphere.ai.AiResponse;
 import com.hiresphere.ai.FakeUsageStore;
 import com.hiresphere.ai.config.AiLimitsProperties;
+import com.hiresphere.ai.metrics.AiMetrics;
 import com.hiresphere.ai.usage.UsageEntry;
 import com.hiresphere.ai.usage.UsageStatus;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -175,5 +177,27 @@ class MeteredAiClientTest {
         failure = new AiException(Kind.UPSTREAM, "down");
 
         assertKind(() -> as(7L, client(10, 1_000, 10_000)), Kind.UPSTREAM);
+    }
+
+    @Test
+    void metricsShouldCountOkFailedAndRefusedCallsSeparately() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        AiMetrics metrics = new AiMetrics(registry);
+        AiLimitsProperties limits = new AiLimitsProperties(1, 1_000, 10_000, null, 0, 0);
+        MeteredAiClient client = new MeteredAiClient(delegate, new AiUserLimiter(1, nanos::get), limits, store, metrics);
+
+        as(7L, client);                                           // ok
+        assertKind(() -> as(7L, client), Kind.USER_RATE_LIMITED); // refused
+        failure = new AiException(Kind.TIMEOUT, "slow");
+        assertKind(() -> as(8L, client), Kind.TIMEOUT);           // failed
+
+        AiMetrics.Snapshot s = metrics.snapshot();
+        assertThat(s.ok()).isEqualTo(1);
+        assertThat(s.refused()).isEqualTo(1);
+        assertThat(s.failed()).isEqualTo(1);
+        assertThat(s.promptTokens()).isEqualTo(10);
+        assertThat(s.outputTokens()).isEqualTo(5);
+        assertThat(registry.get(AiMetrics.CALLS).tag("outcome", "refused").tag("kind", "USER_RATE_LIMITED")
+                .counter().count()).isEqualTo(1.0);
     }
 }

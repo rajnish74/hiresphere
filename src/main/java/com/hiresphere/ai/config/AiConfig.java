@@ -15,7 +15,7 @@ public class AiConfig {
 
     @Bean("geminiRestClient")
     @ConditionalOnProperty(name = "app.ai.enabled", havingValue = "true")
-    RestClient geminiRestClient(AiProperties props) {
+    public RestClient geminiRestClient(AiProperties props) {
         AiProperties.Gemini gemini = props.gemini();
         HttpClient http = HttpClient.newBuilder().connectTimeout(gemini.connectTimeout()).build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);

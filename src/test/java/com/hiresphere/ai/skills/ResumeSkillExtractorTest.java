@@ -5,9 +5,11 @@ import com.hiresphere.ai.AiException.Kind;
 import com.hiresphere.ai.cache.AiResultCache;
 import com.hiresphere.ai.config.AiLimitsProperties;
 import com.hiresphere.ai.json.StructuredAi;
+import com.hiresphere.ai.metrics.AiMetrics;
 import com.hiresphere.ai.usage.UsageEntry;
 import com.hiresphere.ai.usage.UsageStatus;
 import com.hiresphere.common.exception.BadRequestException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -291,5 +293,18 @@ class ResumeSkillExtractorTest {
         extractor.extract("Java developer");
 
         assertThat(extractor.extract("Java developer").skills()).containsExactly("Java");
+    }
+
+    @Test
+    void aCacheHitShouldBeCountedInTheMetrics() {
+        AiMetrics metrics = new AiMetrics(new SimpleMeterRegistry());
+        extractor = new ResumeSkillExtractor(new StructuredAi(client, JsonMapper.builder().build()),
+                new AiResultCache(new AiLimitsProperties(0, 0, 0, null, 0, 0)), usageStore, metrics);
+        aiReturns("{\"skills\":[\"Java\"]}");
+
+        extractor.extract("Java developer");
+        extractor.extract("Java developer");
+
+        assertThat(metrics.snapshot().cached()).isEqualTo(1);
     }
 }

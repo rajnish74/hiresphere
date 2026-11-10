@@ -7,11 +7,13 @@ import com.hiresphere.ai.AiException.Kind;
 import com.hiresphere.ai.AiRequest;
 import com.hiresphere.ai.AiResponse;
 import com.hiresphere.ai.config.AiLimitsProperties;
+import com.hiresphere.ai.metrics.AiMetrics;
 import com.hiresphere.ai.usage.AiUsageStore;
 import com.hiresphere.ai.usage.UsageEntry;
 import com.hiresphere.ai.usage.UsageLog;
 import com.hiresphere.ai.usage.UsageStatus;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -27,28 +29,42 @@ public class MeteredAiClient implements AiClient {
     private final AiUserLimiter limiter;
     private final AiLimitsProperties limits;
     private final AiUsageStore usage;
+    private final AiMetrics metrics;
 
+    @Autowired
     public MeteredAiClient(@Qualifier("resilientAiClient") AiClient delegate, AiUserLimiter limiter,
-                           AiLimitsProperties limits, AiUsageStore usage) {
+                           AiLimitsProperties limits, AiUsageStore usage, AiMetrics metrics) {
         this.delegate = delegate;
         this.limiter = limiter;
         this.limits = limits;
         this.usage = usage;
+        this.metrics = metrics;
+    }
+
+    public MeteredAiClient(AiClient delegate, AiUserLimiter limiter, AiLimitsProperties limits, AiUsageStore usage) {
+        this(delegate, limiter, limits, usage, AiMetrics.standalone());
     }
 
     @Override
     public AiResponse generate(AiRequest request) {
         AiCallContext.Context context = AiCallContext.current();
-        enforce(context);
+        try {
+            enforce(context);
+        } catch (AiException e) {
+            metrics.refused(context.feature(), e.getKind().name());
+            throw e;
+        }
         try {
             AiResponse response = delegate.generate(request);
             UsageLog.quietly(usage, new UsageEntry(context.userId(), context.feature(), response.model(),
                     UsageStatus.OK, null, response.promptTokens(), response.outputTokens(), response.totalTokens(),
                     response.latencyMs()));
+            metrics.ok(context.feature(), response.promptTokens(), response.outputTokens(), response.latencyMs());
             return response;
         } catch (AiException e) {
             UsageLog.quietly(usage, new UsageEntry(context.userId(), context.feature(), null, UsageStatus.FAILED,
                     e.getKind().name(), 0, 0, 0, 0));
+            metrics.failed(context.feature(), e.getKind().name());
             throw e;
         }
     }

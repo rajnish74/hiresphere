@@ -6,6 +6,7 @@ import com.hiresphere.ai.AiRequest;
 import com.hiresphere.ai.AiResponse;
 import com.hiresphere.ai.config.AiLimitsProperties;
 import com.hiresphere.ai.config.AiProperties;
+import com.hiresphere.ai.metrics.AiMetrics;
 import com.hiresphere.ai.resilience.AiBulkhead;
 import com.hiresphere.ai.resilience.AiCircuitBreaker;
 import com.hiresphere.ai.skills.SkillSuggestionService;
@@ -51,6 +52,7 @@ public class AdminAiController {
     private final AiUsageStore usage;
     private final ObjectProvider<AiCircuitBreaker> breakers;
     private final ObjectProvider<AiBulkhead> bulkheads;
+    private final AiMetrics metrics;
 
     public record AiStatus(boolean enabled, String provider, String model, boolean keyConfigured) {
     }
@@ -124,5 +126,12 @@ public class AdminAiController {
         return ApiResponse.ok(new SkillsPreview(s.skills(), s.source().name(), s.degraded(), s.degradedReason(),
                 s.cached(), s.droppedCount(), s.inputTruncated(), ai == null ? 0 : ai.promptTokens(),
                 ai == null ? 0 : ai.outputTokens(), ai == null ? 0 : ai.latencyMs()));
+    }
+
+    @Operation(summary = "AI call counts since the last restart",
+            description = "ok, failed, cached and refused calls, tokens and mean latency. Resets when the app restarts")
+    @GetMapping("/metrics")
+    public ApiResponse<AiMetrics.Snapshot> metrics() {
+        return ApiResponse.ok(metrics.snapshot());
     }
 }
