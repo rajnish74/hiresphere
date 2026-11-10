@@ -1,3 +1,4 @@
+
 package com.hiresphere.job.service;
 
 import java.util.Collection;
@@ -12,6 +13,9 @@ public final class SkillMatch {
     private SkillMatch() {
     }
 
+    public static String key(String skill) {
+        return skill == null ? "" : skill.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+    }
 
     public static Integer percent(Collection<String> candidateSkills, Collection<String> requiredSkills) {
         Set<String> required = normalize(requiredSkills);
@@ -34,7 +38,7 @@ public final class SkillMatch {
         }
         return skills.stream()
                 .filter(Objects::nonNull)
-                .map(s -> s.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT))
+                .map(SkillMatch::key)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
     }

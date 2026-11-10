@@ -60,4 +60,11 @@ class SkillMatchTest {
         assertThat(SkillMatch.missing(List.of("java", "spring boot", "postgresql"), jobSkills)).isEmpty();
         assertThat(SkillMatch.missing(List.of(), jobSkills)).containsExactly("java", "postgresql", "spring boot");
     }
+
+    @Test
+    void keyShouldIgnoreCaseAndExtraSpacesAndNeverReturnNull() {
+        assertThat(SkillMatch.key("  Spring   BOOT ")).isEqualTo("spring boot");
+        assertThat(SkillMatch.key("C++")).isEqualTo("c++");
+        assertThat(SkillMatch.key(null)).isEmpty();
+    }
 }

@@ -94,4 +94,11 @@ public class CandidateProfileService {
                 .map(p -> p.getSkills().stream().map(Skill::getNormalizedName).collect(Collectors.toSet()))
                 .orElse(Set.of());
     }
+
+    @Transactional(readOnly = true)
+    public Optional<ResumeRef> findResume(Long userId) {
+        return profileRepository.findByUserId(userId)
+                .filter(p -> p.getResumeStorageKey() != null)
+                .map(p -> new ResumeRef(p.getResumeStorageKey(), p.getResumeOriginalName()));
+    }
 }
