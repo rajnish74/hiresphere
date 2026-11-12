@@ -31,7 +31,6 @@ public class ExplanationValidator {
     private static final Pattern SENSITIVE = Pattern.compile("(?i)\\b(age|aged|gender|male|female|woman|women|"
             + "religion|religious|caste|marital|married|nationality|pregnan\\w*)\\b");
 
-    /** Aam angrezi shabd jo skill ke naam bhi hain: inhe check karna jhoothi reject deta hai, to skip. Known limit. */
     private static final Set<String> AMBIGUOUS = Set.of("go", "swift", "rust", "spring", "excel", "word", "ruby",
             "spark", "express", "unity", "chef", "ant", "make");
 
@@ -72,7 +71,7 @@ public class ExplanationValidator {
             return Outcome.rejected("a sentence is too long");
         }
 
-        Set<String> allowedNumbers = digitsIn(factSheet);
+        Set<String> allowedNumbers = allowedNumbers(factSheet);
         List<String> all = new ArrayList<>(List.of(cleanSummary, cleanTip));
         all.addAll(cleanStrengths);
         all.addAll(cleanGaps);
@@ -156,5 +155,22 @@ public class ExplanationValidator {
 
     private static List<String> tidyAll(List<String> items) {
         return items == null ? List.of() : items.stream().map(ExplanationValidator::tidy).filter(s -> !s.isEmpty()).toList();
+    }
+
+    private static final Set<String> FREE_TEXT_KEYS = Set.of("job_title", "company", "job_location", "candidate_location");
+
+    private static Set<String> allowedNumbers(String factSheet) {
+        Set<String> allowed = new HashSet<>();
+        if (factSheet == null) {
+            return allowed;
+        }
+        factSheet.lines().forEach(line -> {
+            int colon = line.indexOf(':');
+            if (colon < 0 || FREE_TEXT_KEYS.contains(line.substring(0, colon).strip())) {
+                return;
+            }
+            allowed.addAll(digitsIn(line.substring(colon + 1)));
+        });
+        return allowed;
     }
 }
