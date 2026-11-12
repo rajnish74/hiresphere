@@ -101,4 +101,11 @@ public class CandidateProfileService {
                 .filter(p -> p.getResumeStorageKey() != null)
                 .map(p -> new ResumeRef(p.getResumeStorageKey(), p.getResumeOriginalName()));
     }
+
+    @Transactional(readOnly = true)
+    public Optional<String> findLocation(Long userId) {
+        return profileRepository.findByUserId(userId)
+                .map(CandidateProfile::getLocation)
+                .filter(location -> !location.isBlank());
+    }
 }

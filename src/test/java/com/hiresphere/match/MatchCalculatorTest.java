@@ -302,4 +302,22 @@ class MatchCalculatorTest {
         assertThat(b.experience().status()).isEqualTo(ExperienceStatus.MEETS);   // job ne kuch nahi maanga
         assertThat(b.location().status()).isEqualTo(LocationStatus.UNKNOWN);
     }
+
+    @Test
+    void noSkillsAtAllShouldStayLowEvenWhenTheJobIsRemoteAndForFreshers() {
+        MatchBreakdown b = calc(new MatchInput(List.of("Photoshop"), List.of("Java"), null, 0, null, null, null, WorkMode.REMOTE));
+
+        assertThat(b.skills().percent()).isZero();
+        assertThat(b.fitScore()).isEqualTo(15);   // (0 + 2000 + 1000) / 100 = 30, par 0 + 15 se upar nahi
+        assertThat(b.label()).isEqualTo(FitLabel.LOW);
+    }
+
+    @Test
+    void perfectExperienceAndLocationCannotMakeAThirdOfTheSkillsLookGood() {
+        MatchBreakdown b = calc(new MatchInput(List.of("Java"), JOB, 5, 3, null, "Patna", "Patna", WorkMode.ONSITE));
+
+        assertThat(b.skills().percent()).isEqualTo(33);
+        assertThat(b.fitScore()).isEqualTo(48);   // (2310 + 2000 + 1000) / 100 = 53, par 33 + 15 se upar nahi
+        assertThat(b.label()).isEqualTo(FitLabel.PARTIAL);
+    }
 }

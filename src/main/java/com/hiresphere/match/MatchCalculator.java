@@ -1,3 +1,4 @@
+
 package com.hiresphere.match;
 
 import com.hiresphere.job.entity.WorkMode;
@@ -25,6 +26,9 @@ public final class MatchCalculator {
     static final int SHORTFALL_PENALTY = 35;
     static final int HYBRID_OTHER_CITY_SCORE = 40;
 
+    /** Experience aur location skills ke score ko is se zyada upar nahi utha sakte: 0 skills ka matlab "low", chahe job remote ho. */
+    static final int SUPPORT_BOOST = 15;
+
     private MatchCalculator() {
     }
 
@@ -47,6 +51,7 @@ public final class MatchCalculator {
                 weight += LOCATION_WEIGHT;
             }
             fit = (int) Math.round((double) sum / weight);
+            fit = Math.min(fit, skills.percent() + SUPPORT_BOOST);
         }
         return new MatchBreakdown(fit, FitLabel.of(fit), skills, experience, location);
     }
